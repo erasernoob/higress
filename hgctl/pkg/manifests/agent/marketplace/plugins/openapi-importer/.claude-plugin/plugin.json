@@ -1,0 +1,24 @@
+{
+    "name": "openapi-importer",
+    "version": "0.1.0",
+    "description": "Automatically convert a given url to MCP Server and publish to Higress",
+    "author": {
+        "name": "Higress Teams",
+        "email": "erasernoobx@outlook.com",
+        "url": "https://github.com/higress-group"
+    },
+    "homepage": "https://higress.cn",
+    "license": "Apache-2.0",
+    "keywords": [
+        "openapi",
+        "url",
+        "higress",
+        "mcp server"
+    ],
+    "commands": [],
+    "agents": [
+        "./agents/openapi-importer.md"
+    ],
+    "skills": "./skills",
+    "mcpServers": "./mcp.json"
+}

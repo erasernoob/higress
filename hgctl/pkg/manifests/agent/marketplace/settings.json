@@ -1,0 +1,14 @@
+// This will autamatically install following plugins 
+{
+    "extraKnownMarketplaces": {
+        "higress-tools": {
+            "source": {
+                "source": "directory",
+                "path": "../.hgctl/marketplace/"
+            }
+        }
+    },
+    "enabledPlugins": {
+        "openapi-importer@higress-tools": true
+    }
+}

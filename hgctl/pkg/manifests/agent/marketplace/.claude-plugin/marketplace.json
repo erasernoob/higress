@@ -1,0 +1,27 @@
+{
+    "name": "higress-tools",
+    "owner": {
+        "name": "Higress Team",
+        "email": "zty98751@alibaba-inc.com"
+    },
+    "plugins": [
+        {
+            "name": "openapi-importer",
+            "source": "./plugins/openapi-importer",
+            "description": "Automatically convert a given url to MCP Server and publish to Higress",
+            "version": "0.1.0",
+            "author": {
+                "name": "Higress Team"
+            }
+        },
+        {
+            "name": "openapi-generator",
+            "source": "./plugins/openapi-generator",
+            "description": "Automatically convert a given url's raw response to openapi 3.0 standard specification YAML",
+            "version": "0.1.0",
+            "author": {
+                "name": "Higress Team"
+            }
+        }
+    ]
+}
