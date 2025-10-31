@@ -53,9 +53,13 @@ const (
 var binaryName = AgentBinaryName
 
 // ------ cmd related  ------
-func BindFlagToEnv(cmd *cobra.Command, flagName, envName string) {
-	_ = viper.BindPFlag(flagName, cmd.PersistentFlags().Lookup(flagName))
-	_ = viper.BindEnv(flagName, envName)
+func addHigressConsoleAuthFlag(cmd *cobra.Command, arg *HigressConsoleAuthArg) {
+	cmd.PersistentFlags().StringVar(&arg.baseURL, HIGRESS_CONSOLE_URL, "", "The BaseURL of higress console")
+	cmd.PersistentFlags().StringVar(&arg.hgUser, HIGRESS_CONSOLE_USER, "", "The username of higress console")
+	cmd.PersistentFlags().StringVarP(&arg.hgPassword, HIGRESS_CONSOLE_PASSWORD, "p", "", "The password of higress console")
+
+	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
+	viper.AutomaticEnv()
 }
 
 // ------ Prompt to install prequisite environment  ------

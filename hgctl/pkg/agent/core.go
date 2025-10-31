@@ -19,8 +19,7 @@ import (
 	"os/exec"
 )
 
-type AgenticCore struct {
-}
+type AgenticCore struct{}
 
 func NewAgenticCore() *AgenticCore {
 	return &AgenticCore{}
@@ -32,6 +31,12 @@ func (c *AgenticCore) run(args ...string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+
+}
+
+// setup additional prequisite environment and plugins manifest to user's profile
+// e.g. ../manifest/agent
+func (c *AgenticCore) Setup() {
 
 }
 

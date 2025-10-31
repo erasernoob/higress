@@ -20,7 +20,6 @@ import (
 	"net"
 	"net/url"
 	"os"
-	"strings"
 
 	"github.com/alibaba/higress/hgctl/pkg/agent/services"
 	"github.com/alibaba/higress/hgctl/pkg/helm"
@@ -46,10 +45,7 @@ const (
 )
 
 type MCPAddArg struct {
-	// higress console auth arg
-	baseURL    string
-	hgUser     string
-	hgPassword string
+	HigressConsoleAuthArg
 
 	name      string
 	url       string
@@ -88,7 +84,7 @@ func newMCPAddCmd() *cobra.Command {
 		Short: "add mcp server including http and openapi",
 		Run: func(cmd *cobra.Command, args []string) {
 			arg.name = args[0]
-			resolveHigressConsoleAuth(arg)
+			resolveHigressConsoleAuth(&arg.HigressConsoleAuthArg)
 			cmdutil.CheckErr(handleAddMCP(cmd.OutOrStdout(), *arg))
 			color.Cyan("Tip: Try doing 'kubectl port-forward' and add the server to the agent manually, if MCP Server connection failed")
 		},
@@ -101,7 +97,7 @@ func newMCPAddCmd() *cobra.Command {
 	cmd.PersistentFlags().StringVar(&arg.spec, "spec", "", "Specification of the openapi api")
 	cmd.PersistentFlags().BoolVar(&arg.noPublish, "no-publish", false, "If set then the mcp server will not be plubished to higress")
 
-	addHigressConsoleAuthFlag(cmd, arg)
+	addHigressConsoleAuthFlag(cmd, &arg.HigressConsoleAuthArg)
 
 	return cmd
 }
@@ -112,10 +108,7 @@ func newHanlder(c *AgenticCore, arg MCPAddArg, w io.Writer) *MCPAddHandler {
 
 func (h *MCPAddHandler) validateArg() error {
 	if !h.arg.noPublish {
-		if h.arg.baseURL == "" || h.arg.hgUser == "" || h.arg.hgPassword == "" {
-			fmt.Println("--higress-console-user, --higress-console-url, --higress-console-password must be provided")
-			return fmt.Errorf("invalid args")
-		}
+		return h.arg.HigressConsoleAuthArg.validate()
 	}
 	return nil
 
@@ -291,17 +284,8 @@ func addMCPToolConfig(client *services.HigressClient, config *models.MCPConfig, 
 	// fmt.Println("get openapi tools add response: ", string(resp))
 }
 
-func addHigressConsoleAuthFlag(cmd *cobra.Command, arg *MCPAddArg) {
-	cmd.PersistentFlags().StringVar(&arg.baseURL, HIGRESS_CONSOLE_URL, "", "The BaseURL of higress console")
-	cmd.PersistentFlags().StringVar(&arg.hgUser, HIGRESS_CONSOLE_USER, "", "The username of higress console")
-	cmd.PersistentFlags().StringVarP(&arg.hgPassword, HIGRESS_CONSOLE_PASSWORD, "p", "", "The password of higress console")
-
-	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
-	viper.AutomaticEnv()
-}
-
 // resolve from viper
-func resolveHigressConsoleAuth(arg *MCPAddArg) {
+func resolveHigressConsoleAuth(arg *HigressConsoleAuthArg) {
 	if arg.baseURL == "" {
 		arg.baseURL = viper.GetString(HIGRESS_CONSOLE_URL)
 	}
@@ -315,14 +299,14 @@ func resolveHigressConsoleAuth(arg *MCPAddArg) {
 	// fmt.Printf("arg: %v\n", arg)
 
 	if arg.hgUser == "" || arg.hgPassword == "" {
-		// Here we do not return this error, cause it will failed when validate arg
+		// Here we do not return this error, because it will failed when validate arg
 		if err := tryToGetLocalCredential(arg); err != nil {
 			fmt.Printf("failed to get local higress console credential: %s\n", err)
 		}
 	}
 }
 
-func tryToGetLocalCredential(arg *MCPAddArg) error {
+func tryToGetLocalCredential(arg *HigressConsoleAuthArg) error {
 	profileContexts, err := getAllProfiles()
 
 	// The higress is not installed by hgctl

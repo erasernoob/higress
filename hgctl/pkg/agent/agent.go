@@ -15,10 +15,15 @@
 package agent
 
 import (
+	"fmt"
 	"io"
 
 	"github.com/spf13/cobra"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
+)
+
+const (
+	A2ATransport = "a2a"
 )
 
 func NewAgentCmd() *cobra.Command {
@@ -30,11 +35,12 @@ func NewAgentCmd() *cobra.Command {
 		},
 	}
 
+	agentCmd.AddCommand(newAgentAddCmd())
+
 	return agentCmd
 }
 
 func handleAgentInvoke(w io.Writer) error {
-
 	return getAgent().Start()
 }
 
@@ -42,5 +48,70 @@ func handleAgentInvoke(w io.Writer) error {
 // 1. Parse the url provided by user to MCP server configuration.
 // 2. Publish the parsed MCP Server to Higress
 func addPrequisiteSubAgent() error {
+	return nil
+}
+
+type AgentAddArg struct {
+	HigressConsoleAuthArg
+
+	name      string
+	url       string
+	transport string
+	scope     string
+	noPublish bool
+}
+
+func newAgentAddCmd() *cobra.Command {
+	// parameter
+	arg := &AgentAddArg{}
+
+	cmd := &cobra.Command{
+		Use:   "add [name] [url]",
+		Short: "add agent to local interactive window and publish it to higress (optional)",
+		Run: func(cmd *cobra.Command, args []string) {
+			arg.name = args[0]
+			arg.url = args[1]
+			resolveHigressConsoleAuth(&arg.HigressConsoleAuthArg)
+			cmdutil.CheckErr(handleAddAgent(cmd.OutOrStdout(), *arg))
+		},
+		Args: cobra.ExactArgs(1),
+	}
+
+	cmd.PersistentFlags().StringVarP(&arg.transport, "transport", "t", A2ATransport, "Determine the agent's supported tranport protocol default is A2A")
+	cmd.PersistentFlags().StringVarP(&arg.url, "url", "u", "", "Endpoint that the agent serves")
+	cmd.PersistentFlags().StringVarP(&arg.scope, "scope", "s", "project", `Configuration scope (project or global)`)
+	cmd.PersistentFlags().BoolVar(&arg.noPublish, "no-publish", false, "If set then the agent will not be plubished to higress")
+
+	addHigressConsoleAuthFlag(cmd, &arg.HigressConsoleAuthArg)
+	return cmd
+}
+
+func handleAddAgent(writer io.Writer, arg AgentAddArg) error {
+	agent := getAgent()
+	if err := validateArg(arg); err != nil {
+		return err
+	}
+
+	switch arg.transport {
+	case A2ATransport:
+		return handleAddA2A(agent, arg)
+	default:
+		return fmt.Errorf("unsupported agent protocol type: %s", arg.transport)
+	}
+}
+
+func handleAddA2A(agent *AgenticCore, arg AgentAddArg) error {
+
+	if !arg.noPublish {
+		fmt.Println("publish to higress (himarket?)")
+	}
+
+	return nil
+}
+
+func validateArg(arg AgentAddArg) error {
+	if !arg.noPublish {
+		return arg.HigressConsoleAuthArg.validate()
+	}
 	return nil
 }

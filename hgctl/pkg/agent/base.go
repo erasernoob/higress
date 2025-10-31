@@ -28,6 +28,21 @@ const (
 	AgentReleasePage = "https://docs.claude.com/en/docs/claude-code/setup"
 )
 
+type HigressConsoleAuthArg struct {
+	// higress console auth arg
+	baseURL    string
+	hgUser     string
+	hgPassword string
+}
+
+func (h *HigressConsoleAuthArg) validate() error {
+	if h.baseURL == "" || h.hgUser == "" || h.hgPassword == "" {
+		fmt.Println("--higress-console-user, --higress-console-url, --higress-console-password must be provided")
+		return fmt.Errorf("invalid args")
+	}
+	return nil
+}
+
 // set up the core env
 // 1. check if npm is installed
 // 2. check the npm version
