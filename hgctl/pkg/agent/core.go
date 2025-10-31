@@ -15,14 +15,20 @@
 package agent
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+
+	"github.com/alibaba/higress/hgctl/pkg/manifests"
 )
 
 type AgenticCore struct{}
 
 func NewAgenticCore() *AgenticCore {
-	return &AgenticCore{}
+	core := &AgenticCore{}
+	core.Setup()
+	return core
 }
 
 func (c *AgenticCore) run(args ...string) error {
@@ -37,7 +43,13 @@ func (c *AgenticCore) run(args ...string) error {
 // setup additional prequisite environment and plugins manifest to user's profile
 // e.g. ../manifest/agent
 func (c *AgenticCore) Setup() {
-
+	embedFS := manifests.BuiltinOrDir("")
+	homeDir, _ := os.UserHomeDir()
+	if err := manifests.ExtractEmbedFiles(embedFS, "agent", filepath.Join(homeDir, ".hgctl")); err != nil {
+		fmt.Println(err)
+		fmt.Println("failed to init plugins for claude code")
+		os.Exit(1)
+	}
 }
 
 // ------- Initialization  -------

@@ -44,13 +44,6 @@ func handleAgentInvoke(w io.Writer) error {
 	return getAgent().Start()
 }
 
-// Sub-Agent1:
-// 1. Parse the url provided by user to MCP server configuration.
-// 2. Publish the parsed MCP Server to Higress
-func addPrequisiteSubAgent() error {
-	return nil
-}
-
 type AgentAddArg struct {
 	HigressConsoleAuthArg
 
@@ -113,5 +106,12 @@ func validateArg(arg AgentAddArg) error {
 	if !arg.noPublish {
 		return arg.HigressConsoleAuthArg.validate()
 	}
+	return nil
+}
+
+// Sub-Agent1:
+// 1. Parse the url provided by user to MCP server configuration.
+// 2. Publish the parsed MCP Server to Higress
+func addPrequisiteSubAgent() error {
 	return nil
 }
