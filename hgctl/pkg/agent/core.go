@@ -20,7 +20,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 
 	"github.com/alibaba/higress/hgctl/pkg/manifests"
 	"github.com/fatih/color"
@@ -79,13 +78,12 @@ func (c *AgenticCore) addHigressAPIMCP() error {
 
 	arg.baseURL = gateway
 
-	if err := tryToGetLocalCredential(arg); err != nil {
-		fmt.Println(err)
+	if err := tryToGetLocalCredential(arg); err != nil || arg.hgUser == "" || arg.hgPassword == "" {
 		// fallback: interact with user to provide password & username
 		color.Red("failed to get higress-console credential automatically. Let's fix it manually")
 		userPrompt := promptui.Prompt{
 			Label:   "Enter higress console username",
-			Default: "",
+			Default: "admin",
 		}
 		username, err := userPrompt.Run()
 		if err != nil {
@@ -93,7 +91,7 @@ func (c *AgenticCore) addHigressAPIMCP() error {
 		}
 		pwdPrompt := promptui.Prompt{
 			Label:   "Enter higress console password",
-			Default: "",
+			Default: "admin",
 		}
 		pwd, err := pwdPrompt.Run()
 		if err != nil {
@@ -103,18 +101,21 @@ func (c *AgenticCore) addHigressAPIMCP() error {
 		arg.hgPassword = pwd
 	}
 
+	if arg.hgUser == "" || arg.hgPassword == "" {
+		return fmt.Errorf("Empty higress console username and password, aborting")
+	}
+
 	rawByte := fmt.Appendf(nil, "%s:%s", arg.hgUser, arg.hgPassword)
-	var dst []byte
 
-	base64.StdEncoding.Encode(dst, rawByte)
+	resStr := base64.StdEncoding.EncodeToString(rawByte)
 
-	authHeader := fmt.Sprintf("Authorization: Basic %s", string(dst))
+	authHeader := fmt.Sprintf("Authorization: Basic %s", resStr)
 
 	return c.AddMCPServer(MCPAddArg{
 		name:      "higress-api",
 		url:       fmt.Sprintf("%s/higress-api", arg.baseURL),
 		transport: HTTP,
-		scope:     "global",
+		scope:     "user",
 		header: []string{
 			authHeader,
 		},
@@ -128,26 +129,24 @@ func (c *AgenticCore) Start() error {
 
 // ------- MCP  -------
 func (c *AgenticCore) AddMCPServer(arg MCPAddArg) error {
-	builder := strings.Builder{}
-	builder.WriteString(fmt.Sprintf("mcp add --transport %s %s %s", arg.transport, arg.name, arg.url))
+	args := []string{
+		"mcp", "add", "--transport", arg.transport, arg.name, arg.url,
+	}
 	if arg.scope != "" {
-		builder.WriteString(fmt.Sprintf(" --scope %s ", arg.scope))
+		scopeArg := []string{"--scope", arg.scope}
+		args = append(args, scopeArg...)
 	}
 	if len(arg.env) != 0 {
-		str := []string{}
 		for _, e := range arg.env {
-			str = append(str, fmt.Sprintf("-e %s", e))
+			envArg := []string{"-e", e}
+			args = append(args, envArg...)
 		}
-		builder.WriteString(strings.Join(str, " "))
 	}
 	if len(arg.header) != 0 {
-		arr := []string{}
-		for _, e := range arg.header {
-			arr = append(arr, fmt.Sprintf("-h %s", e))
+		for _, h := range arg.header {
+			headerArg := []string{"-H", h}
+			args = append(args, headerArg...)
 		}
-		builder.WriteString(strings.Join(arr, " "))
 	}
-	cmdStr := builder.String()
-	fmt.Println(cmdStr)
-	return c.run(cmdStr)
+	return c.run(args...)
 }
