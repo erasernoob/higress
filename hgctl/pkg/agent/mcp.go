@@ -53,9 +53,8 @@ type MCPAddArg struct {
 	spec      string
 	scope     string
 	noPublish bool
-	// TODO: support mcp env
-	// env string
-
+	env       []string
+	header    []string
 }
 
 type MCPAddHandler struct {
@@ -115,7 +114,7 @@ func (h *MCPAddHandler) validateArg() error {
 }
 
 func (h *MCPAddHandler) addHTTPMCP() error {
-	if err := h.core.AddMCPServer(h.arg.name, h.arg.url); err != nil {
+	if err := h.core.AddMCPServer(h.arg); err != nil {
 		return fmt.Errorf("mcp add failed: %w", err)
 	}
 
@@ -146,7 +145,8 @@ func (h *MCPAddHandler) addOpenAPIMCP() error {
 		return err
 	}
 	mcpURL := fmt.Sprintf("http://%s/mcp-servers/%s", gatewayIP, h.arg.name)
-	return h.core.AddMCPServer(h.arg.name, mcpURL)
+	h.arg.url = mcpURL
+	return h.core.AddMCPServer(h.arg)
 }
 
 func (h *MCPAddHandler) parseOpenapiSpec() *models.MCPConfig {
