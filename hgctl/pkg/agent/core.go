@@ -30,8 +30,7 @@ type AgenticCore struct{}
 
 func NewAgenticCore() *AgenticCore {
 	core := &AgenticCore{}
-	// TODO: Not every time to activate the setup logic
-	// core.Setup()
+	core.Setup()
 	return core
 }
 
@@ -47,16 +46,24 @@ func (c *AgenticCore) run(args ...string) error {
 // setup additional prequisite environment and plugins manifest to user's profile
 // e.g. ../manifest/agent
 func (c *AgenticCore) Setup() {
-	embedFS := manifests.BuiltinOrDir("")
+	// Check if this is the first time, otherwise directly return (this is a simple check)
 	homeDir, _ := os.UserHomeDir()
-	if err := manifests.ExtractEmbedFiles(embedFS, "agent", filepath.Join(homeDir, ".hgctl")); err != nil {
+	targetDir := filepath.Join(homeDir, ".hgctl")
+	if _, err := os.Stat(targetDir); err == nil {
+		return
+	}
+
+	// Setup subagent plugins file
+	embedFS := manifests.BuiltinOrDir("")
+	if err := manifests.ExtractEmbedFiles(embedFS, "agent", targetDir); err != nil {
 		fmt.Println(err)
 		fmt.Println("failed to init plugins for claude code")
 		os.Exit(1)
 	}
 
 	if err := c.addHigressAPIMCP(); err != nil {
-		fmt.Println("failed to init higress-api mcp server (you may need to add it manually): ", err)
+		fmt.Println("failed to init higress-api mcp server (you may need to add it manually):", err)
+		fmt.Println("Details information on Higress-api MCP server refers to https://github.com/alibaba/higress/blob/main/plugins/golang-filter/mcp-server/servers/higress/higress-api/README_en.md")
 		return
 	}
 }
@@ -113,10 +120,10 @@ func (c *AgenticCore) addHigressAPIMCP() error {
 	authHeader := fmt.Sprintf("Authorization: Basic %s", resStr)
 
 	return c.AddMCPServer(MCPAddArg{
-		name:      "higress-api",
-		url:       fmt.Sprintf("%s/higress-api", arg.baseURL),
-		transport: HTTP,
-		scope:     "user",
+		name:  "higress-api",
+		url:   fmt.Sprintf("%s/higress-api", arg.baseURL),
+		typ:   HTTP,
+		scope: "user",
 		header: []string{
 			authHeader,
 		},
@@ -131,7 +138,7 @@ func (c *AgenticCore) Start() error {
 // ------- MCP  -------
 func (c *AgenticCore) AddMCPServer(arg MCPAddArg) error {
 	args := []string{
-		"mcp", "add", "--transport", arg.transport, arg.name, arg.url,
+		"mcp", "add", "--transport", arg.typ, arg.name, arg.url,
 	}
 	if arg.scope != "" {
 		scopeArg := []string{"--scope", arg.scope}

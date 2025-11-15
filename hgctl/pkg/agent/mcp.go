@@ -49,7 +49,7 @@ type MCPAddArg struct {
 
 	name      string
 	url       string
-	transport string
+	typ       string
 	spec      string
 	scope     string
 	noPublish bool
@@ -90,10 +90,10 @@ func newMCPAddCmd() *cobra.Command {
 		Args: cobra.ExactArgs(1),
 	}
 
-	cmd.PersistentFlags().StringVarP(&arg.transport, "transport", "t", HTTP, "Determine the MCP Server's Type")
+	cmd.PersistentFlags().StringVarP(&arg.typ, "type", "t", HTTP, "Determine the MCP Server's Type")
 	cmd.PersistentFlags().StringVarP(&arg.url, "url", "u", "", "MCP server URL")
 	cmd.PersistentFlags().StringVarP(&arg.scope, "scope", "s", "project", `Configuration scope (project or global)`)
-	cmd.PersistentFlags().StringVar(&arg.spec, "spec", "", "Specification of the openapi api")
+	cmd.PersistentFlags().StringVar(&arg.spec, "spec", "", "Specification file (yaml/json) of the openapi api")
 	cmd.PersistentFlags().BoolVar(&arg.noPublish, "no-publish", false, "If set then the mcp server will not be plubished to higress")
 
 	addHigressConsoleAuthFlag(cmd, &arg.HigressConsoleAuthArg)
@@ -162,7 +162,7 @@ func handleAddMCP(w io.Writer, arg MCPAddArg) error {
 
 	// spec -> OPENAPI
 	// noPublish -> typ
-	switch arg.transport {
+	switch arg.typ {
 	case HTTP:
 		return h.addHTTPMCP()
 	case OPENAPI:
