@@ -223,7 +223,7 @@ func publishToHigress(arg MCPAddArg, config *models.MCPConfig) error {
 		srvPort = res.Port()
 	}
 
-	_, err = services.HandleAddServiceSource(client, map[string]interface{}{
+	resp, err := services.HandleAddServiceSource(client, map[string]interface{}{
 		"domain":        res.Host,
 		"type":          srvType,
 		"port":          srvPort,
@@ -232,7 +232,7 @@ func publishToHigress(arg MCPAddArg, config *models.MCPConfig) error {
 		"protocol":      res.Scheme,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("response body: %s %s\n", string(resp), err)
 	}
 
 	srvField := []map[string]interface{}{{

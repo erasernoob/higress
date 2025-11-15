@@ -30,7 +30,8 @@ type AgenticCore struct{}
 
 func NewAgenticCore() *AgenticCore {
 	core := &AgenticCore{}
-	core.Setup()
+	// TODO: Not every time to activate the setup logic
+	// core.Setup()
 	return core
 }
 
@@ -66,7 +67,7 @@ func (c *AgenticCore) addHigressAPIMCP() error {
 		hgUser:     "",
 		hgPassword: "",
 	}
-	fmt.Println("Automatically add Higress-api MCP server...")
+	fmt.Println("Initializing...Add prequisite MCP server (Higress-api MCP server) automatically")
 	gatewayPrompt := promptui.Prompt{
 		Label:   "Enter higress gateway URL",
 		Default: "http://127.0.0.1:80",
@@ -80,7 +81,7 @@ func (c *AgenticCore) addHigressAPIMCP() error {
 
 	if err := tryToGetLocalCredential(arg); err != nil || arg.hgUser == "" || arg.hgPassword == "" {
 		// fallback: interact with user to provide password & username
-		color.Red("failed to get higress-console credential automatically. Let's fix it manually")
+		color.Red("failed to get higress-console credential automatically (Need install higress by hgctl). Let's fix it manually")
 		userPrompt := promptui.Prompt{
 			Label:   "Enter higress console username",
 			Default: "admin",

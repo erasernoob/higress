@@ -65,6 +65,7 @@ func (c *HigressClient) request(method, path string, data interface{}) ([]byte, 
 	var body io.Reader
 	if data != nil {
 		jsonData, err := json.Marshal(data)
+		// fmt.Println("get request:", string(jsonData))
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal request data: %w", err)
 		}
@@ -91,6 +92,8 @@ func (c *HigressClient) request(method, path string, data interface{}) ([]byte, 
 	if resp.StatusCode == 409 {
 		return nil, fmt.Errorf("resource already exists")
 	}
+
+	// fmt.Println(resp)
 
 	if resp.StatusCode == 400 {
 		return nil, fmt.Errorf("invalid resource definition")
