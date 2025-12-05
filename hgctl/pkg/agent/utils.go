@@ -587,12 +587,16 @@ func getAgentConfig(name string) (*AgentConfig, error) {
 			"claude-3-sonnet",
 			"claude-3-opus",
 			"gemini-pro",
-			"...",
 		},
 		Default: "qwen-flash",
 	}
 	if err := survey.AskOne(promptModelName, &config.ChatModel); err != nil {
 		return nil, err
+	}
+
+	// can also covered by environment
+	if env_model := os.Getenv("AGENT_CHAT_MODEL"); env_model != "" {
+		config.ChatModel = env_model
 	}
 
 	fmt.Println()

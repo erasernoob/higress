@@ -158,11 +158,10 @@ async def main():
     print(f"📍 部署 ID：{deployment_info['deploy_id']}")
     print(
         f"""
-🎯 服务已启动，可测试：
 curl {deployment_info['url']}/health
-curl -X POST {deployment_info['url']}/admin/shutdown  # 停止服务
+curl -X POST {deployment_info['url']}/admin/shutdown 
 
-⚠️ 注意：服务在独立进程中运行，直到被主动停止。
+Note: Agent is running under a independent process.
 """
     )
 
