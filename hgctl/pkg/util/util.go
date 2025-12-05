@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -92,4 +93,11 @@ func WriteFileString(fileName string, content string, perm os.FileMode) error {
 	}
 	writer.Flush()
 	return nil
+}
+
+// This function return ~/.hgctl file_path string (Currently Linux only)
+func GetHomeHgctlDir() string {
+	homeDir, _ := os.UserHomeDir()
+	targetDir := filepath.Join(homeDir, ".hgctl")
+	return targetDir
 }

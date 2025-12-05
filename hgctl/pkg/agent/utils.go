@@ -515,3 +515,250 @@ func getAllProfiles() ([]*installer.ProfileContext, error) {
 	}
 	return profileContexts, nil
 }
+
+func getAgentConfig(name string) (*AgentConfig, error) {
+
+	purple := color.New(color.FgMagenta, color.Bold)
+	cyan := color.New(color.FgCyan)
+	yellow := color.New(color.FgYellow)
+	green := color.New(color.FgGreen)
+
+	config := &AgentConfig{}
+
+	config.AgentName = name
+	config.AppName = name
+
+	fmt.Println()
+	cyan.Printf("🤖 Let's configure your agent '%s'\n", name)
+	fmt.Println()
+
+	sysPromptDefault := fmt.Sprintf("You're a helpful assistant named %s.", name)
+	fmt.Println()
+	purple.Println("📝 System Prompt")
+	fmt.Println("  This defines the agent's personality and behavior")
+
+	// TODO: generate the promptSysPrompt by LLM
+	promptSysPrompt := &survey.Input{
+		Message: "What is the system prompt for this agent?",
+		Default: sysPromptDefault,
+	}
+	if err := survey.AskOne(promptSysPrompt, &config.SysPrompt); err != nil {
+		return nil, err
+	}
+
+	fmt.Println()
+	purple.Println("📋 App Description")
+	fmt.Println("  A brief description of what this agent does")
+	promptAppDescription := &survey.Input{
+		Message: "What is the app description?",
+		Default: "A helpful assistant and useful agent",
+	}
+	if err := survey.AskOne(promptAppDescription, &config.AppDescription); err != nil {
+		return nil, err
+	}
+
+	fmt.Println()
+	purple.Println("🔧 Available Tools")
+	fmt.Println("  Select the tools this agent can use")
+	for _, tool := range ASAvailiableTools {
+		yellow.Printf("   • %s\n", tool)
+	}
+	fmt.Println()
+
+	promptTools := &survey.MultiSelect{
+		Message: "Which tools to enable? (Space to select, Enter to confirm)",
+		Options: ASAvailiableTools,
+		Default: []string{"execute_python_code"},
+	}
+	if err := survey.AskOne(promptTools, &config.AvailableTools); err != nil {
+		return nil, err
+	}
+
+	fmt.Println()
+	purple.Println("🤖 AI Model")
+	fmt.Println("  Choose the AI model that powers this agent")
+	promptModelName := &survey.Select{
+		Message: "Which AI model to use?",
+		Options: []string{
+			"qwen-flash",
+			"qwen-max",
+			"gpt-4",
+			"gpt-3.5-turbo",
+			"claude-3-sonnet",
+			"claude-3-opus",
+			"gemini-pro",
+			"...",
+		},
+		Default: "qwen-flash",
+	}
+	if err := survey.AskOne(promptModelName, &config.ChatModel); err != nil {
+		return nil, err
+	}
+
+	fmt.Println()
+	purple.Println("🔑 API Key Configuration")
+	fmt.Println("  Environment variable name for the API key")
+	promptAPIKey := &survey.Input{
+		Message: "Environment variable name for API key:",
+		Default: "DASHSCOPE_API_KEY",
+	}
+	if err := survey.AskOne(promptAPIKey, &config.APIKeyEnvVar); err != nil {
+		return nil, err
+	}
+
+	fmt.Println()
+	purple.Println("🌐 Deployment Settings")
+	fmt.Println("  Network configuration for the agent")
+	promptPort := &survey.Input{
+		Message: "Deployment port:",
+		Default: "8090",
+	}
+	var portStr string
+
+	if err := survey.AskOne(promptPort, &portStr); err != nil {
+		return nil, err
+	}
+
+	if portNum, err := strconv.Atoi(portStr); err == nil {
+		config.DeploymentPort = portNum
+	} else {
+		config.DeploymentPort = 8090 // 默认值
+	}
+
+	promptHost := &survey.Input{
+		Message: "Host binding:",
+		Default: "0.0.0.0",
+	}
+	if err := survey.AskOne(promptHost, &config.HostBinding); err != nil {
+		return nil, err
+	}
+
+	fmt.Println()
+	purple.Println("⚡ Response Settings")
+	fmt.Println("  How the agent responds to user input")
+	promptStreaming := &survey.Confirm{
+		Message: "Enable streaming responses?",
+		Default: true,
+	}
+	if err := survey.AskOne(promptStreaming, &config.EnableStreaming); err != nil {
+		return nil, err
+	}
+
+	promptThinking := &survey.Confirm{
+		Message: "Enable thinking mode?",
+		Default: true,
+	}
+	if err := survey.AskOne(promptThinking, &config.EnableThinking); err != nil {
+		return nil, err
+	}
+
+	fmt.Println()
+	purple.Println("🔗 MCP Server Configuration")
+	cyan.Println("  Configure multiple MCP servers if you want to use external tools")
+	yellow.Println("  Press Enter to finish adding MCP servers")
+	fmt.Println()
+
+	config.MCPServers = []MCPServerConfig{}
+
+	for {
+		var mcpserver MCPServerConfig
+
+		// MCP Server URL
+		promptMCPServer := &survey.Input{
+			Message: "MCP Server URL (or press Enter to finish):",
+			Default: "",
+		}
+		if err := survey.AskOne(promptMCPServer, &mcpserver.URL); err != nil || mcpserver.URL == "" {
+			break
+		}
+
+		// MCP Server URL
+		promptMCPTransport := &survey.Input{
+			Message: "transport:",
+			Default: "streamable_http",
+		}
+		if err := survey.AskOne(promptMCPTransport, &mcpserver.Transport); err != nil || mcpserver.Transport == "" {
+			break
+		}
+		// trim URL
+		mcpserver.URL = strings.TrimSpace(mcpserver.URL)
+
+		// MCP Client Name
+		mcpNameDefault := fmt.Sprintf("%s-mcp-%d", config.AgentName, len(config.MCPServers)+1)
+		promptMCPName := &survey.Input{
+			Message: "MCP Client Name:",
+			Default: mcpNameDefault,
+		}
+		if err := survey.AskOne(promptMCPName, &mcpserver.Name); err != nil {
+			return nil, err
+		}
+
+		// HTTP Headers
+		fmt.Println()
+		yellow.Printf("📋 HTTP Headers for '%s' (optional)\n", mcpserver.Name)
+		cyan.Println("  Add custom headers for MCP server requests")
+		yellow.Println("  Press Enter to finish adding headers")
+
+		mcpserver.Headers = make(map[string]string)
+
+		for {
+			var headerKey, headerValue string
+
+			promptKey := &survey.Input{
+				Message: "Header name (or press Enter to finish):",
+				Default: "",
+			}
+			if err := survey.AskOne(promptKey, &headerKey); err != nil || headerKey == "" {
+				break
+			}
+
+			promptValue := &survey.Input{
+				Message: fmt.Sprintf("Value for '%s':", headerKey),
+				Default: "",
+			}
+			if err := survey.AskOne(promptValue, &headerValue); err != nil {
+				return nil, err
+			}
+
+			if headerValue != "" {
+				mcpserver.Headers[headerKey] = headerValue
+			}
+		}
+
+		// 添加到配置列表
+		config.MCPServers = append(config.MCPServers, mcpserver)
+
+		fmt.Println()
+		green.Printf("✅ Added MCP server: %s\n", mcpserver.Name)
+		fmt.Println()
+	}
+
+	showConfigSummary(config)
+
+	return config, nil
+}
+
+// Print agent config summary to user
+func showConfigSummary(config *AgentConfig) {
+	summaryColor := color.New(color.FgBlue, color.Bold)
+	summaryColor.Println("📊 Agent Configuration Summary:")
+	fmt.Printf("  📝 Name: %s\n", config.AgentName)
+	fmt.Printf("  🤖 Model: %s\n", config.ChatModel)
+	fmt.Printf("  🔧 Tools: %d selected\n", len(config.AvailableTools))
+	fmt.Printf("  🌐 Port: %d\n", config.DeploymentPort)
+	fmt.Printf("  📍 Host: %s\n", config.HostBinding)
+	fmt.Printf("  ✨ Streaming: %t\n", config.EnableStreaming)
+	fmt.Printf("  🧠 Thinking: %t\n", config.EnableThinking)
+
+	if len(config.MCPServers) > 0 {
+		fmt.Printf("  🔗 MCP Servers: %d\n", len(config.MCPServers))
+		for i, mcp := range config.MCPServers {
+			fmt.Printf("    %d. %s - %s\n", i+1, mcp.Name, mcp.URL)
+			if len(mcp.Headers) > 0 {
+				fmt.Printf("       Headers: %d\n", len(mcp.Headers))
+			}
+		}
+	}
+	fmt.Println()
+	fmt.Println()
+}
