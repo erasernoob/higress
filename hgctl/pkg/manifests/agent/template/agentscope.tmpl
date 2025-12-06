@@ -147,21 +147,17 @@ async def query_func(self, msgs, request: AgentRequest, **kwargs):
 
 async def main():
     """以独立进程模式部署应用"""
-    print("🚀 以独立进程模式部署 AgentApp...")
-
     deployment_info = await app.deploy(
         LocalDeployManager(host="{{.HostBinding}}", port={{.DeploymentPort}}),
         mode=DeploymentMode.DETACHED_PROCESS,
     )
-
-    print(f"✅ 部署成功：{deployment_info['url']}")
+    url = deployment_info['url']
+    print(f"✅ 部署成功：{url}")
     print(f"📍 部署 ID：{deployment_info['deploy_id']}")
     print(
         f"""
-curl {deployment_info['url']}/health
-curl -X POST {deployment_info['url']}/admin/shutdown 
-
-Note: Agent is running under a independent process.
+🩺 Check health: curl {deployment_info['url']}/health
+⏻ Shutdown:     curl -X POST {deployment_info['url']}/admin/shutdown 
 """
     )
 

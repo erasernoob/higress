@@ -31,6 +31,10 @@ var ASAvailiableTools = []string{
 	"openai_audio_to_text",
 }
 
+const (
+	MinPythonVersion = "3.10"
+)
+
 type MCPServerConfig struct {
 	Name      string            // MCP Client Name
 	URL       string            // MCP Server URL
@@ -53,6 +57,14 @@ type AgentConfig struct {
 	MCPServers      []MCPServerConfig
 }
 
+type AgentHandler struct {
+	*AgentConfig
+
+	PythonVenvPath string
+	AgentDir       string
+	AgentFile      string
+}
+
 func createAgentCmd() *cobra.Command {
 	var createAgentCmd = &cobra.Command{
 		Use:   "new agent [name]",
@@ -66,21 +78,34 @@ func createAgentCmd() *cobra.Command {
 				fmt.Printf("Error get Agent config: %v\n", err)
 				os.Exit(1)
 			}
-			if err := generateAgent(config); err != nil {
+
+			if err := createAgentTemplate(config); err != nil {
 				fmt.Printf("Error creating agent: %v\n", err)
 				os.Exit(1)
 			}
 
-			fmt.Printf("Agent '%s' created successfully! Running...\n", name)
-			runAgent(name)
+			agentDir := filepath.Join(util.GetHomeHgctlDir(), "agents")
+			agentFile := filepath.Join(agentDir, name, "agent.py")
 
+			handler := &AgentHandler{
+				AgentConfig:    config,
+				PythonVenvPath: "",
+				AgentDir:       agentDir,
+				AgentFile:      agentFile,
+			}
+
+			fmt.Printf("Agent '%s' created successfully! Start to deploy it to local...\n", name)
+			if err := handler.runAgent(); err != nil {
+				fmt.Printf("Error deploy agent: %v\n", err)
+				os.Exit(1)
+			}
 		},
 	}
 	return createAgentCmd
 
 }
 
-func generateAgent(config *AgentConfig) error {
+func createAgentTemplate(config *AgentConfig) error {
 	templateStr, err := get_agentscope_template()
 	if err != nil {
 		return fmt.Errorf("failed to read template: %v", err)
@@ -136,148 +161,159 @@ func get_agentscope_template() (string, error) {
 	return string(data), nil
 }
 
-type AgentEnvCheck struct {
-	PythonVersion       string
-	PythonExists        bool
-	AgentscopeInstalled bool
-	RequiredDeps        []string
-	MissingDeps         []string
+func (h *AgentHandler) RunPythonCmd(showOutput bool, args ...string) error {
+	pythonPath := filepath.Join(h.PythonVenvPath, "bin", "python3")
+	cmd := exec.Command(pythonPath, args...)
+
+	if showOutput {
+		cmd.Stderr = os.Stderr
+		cmd.Stdout = os.Stdout
+	}
+
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
-func checkAgentEnvironment(agentName string) (*AgentEnvCheck, error) {
-	check := &AgentEnvCheck{
-		RequiredDeps: []string{
-			"agentscope",
-			"agentscope-runtime==1.0.0",
-		},
-	}
+func (h *AgentHandler) checkAgentRequiredEnvironment() error {
+	// requiredDeps := []string{
+	// 	"agentscope",
+	// 	"agentscope-runtime==1.0.0",
+	// }
 
 	pyVenv, err := util.GetPythonVersion()
 	if err != nil {
-		fmt.Printf("Python environment not found, you need Python environment to deploy your agent\n")
-		return nil, err
+		fmt.Printf("Python environment not found, you need Python environment to run your agent\n")
+		return err
+	}
+	// TODO: not graceful way to find initial python path
+	if path, err := exec.LookPath("python"); err == nil {
+		pythonPathAbs, _ := filepath.Abs(path)
+		venvBin := filepath.Dir(pythonPathAbs)
+		venvRoot := filepath.Dir(venvBin)
+		h.PythonVenvPath = venvRoot
 	}
 
-	if util.CompareVersions(pyVenv, "3.10") == -1 {
+	if util.CompareVersions(pyVenv, MinPythonVersion) == -1 {
 		fmt.Printf("Current Python: %s need Python 3.10+", pyVenv)
-		return nil, fmt.Errorf("unsupport python version")
+		return fmt.Errorf("unsupport python version")
 	}
 
-	return check, checkDeps()
+	if err := h.checkRequiredDeps(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
-func checkDeps() error {
-	// Currently check agentscope and agentscopeRuntime
-	cmd := exec.Command("python3", "-c", "import agentscope; print(agentscope.__version__)")
-	_, err := cmd.Output()
-	if err != nil {
-		fmt.Printf("agentscope not installed: %s, installing...", err)
-		cmd := exec.Command("pip", "install", "agentscope")
-		if _, err = cmd.Output(); err != nil {
-			return fmt.Errorf("failed to install agentscope: %e", err)
-		}
+// Currently only check agentscope and agentscope-runtime
+func (h *AgentHandler) checkRequiredDeps() error {
+	missingDeps := []string{}
+	if err := h.RunPythonCmd(false, "-c", "import agentscope; print(agentscope.__version__)"); err != nil {
+		fmt.Println("agentscope not installed, installing...")
+		missingDeps = append(missingDeps, "agentscope")
 	}
 
-	cmd = exec.Command("python3", "-c", "import agentscope_runtime; print(agentscope_runtime.__version__)")
-	_, err = cmd.Output()
-	if err != nil {
-		fmt.Printf("agentscope-runtime not installed: %w, installing...", err)
-		cmd := exec.Command("pip", "install", "agentscope-runtime==1.0.0")
-		if _, err = cmd.Output(); err != nil {
-			return fmt.Errorf("failed to install agentscope-runtime: %e", err)
-		}
+	if err := h.RunPythonCmd(false, "-c", "import agentscope_runtime; print(agentscope_runtime.__version__)"); err != nil {
+		fmt.Println("agentscope-runtime not installed, installing...")
+		missingDeps = append(missingDeps, "agentscope-runtime==1.0.0")
 	}
+
+	venvDir := filepath.Join(util.GetHomeHgctlDir(), ".venv")
+	h.PythonVenvPath = venvDir
+
+	if len(missingDeps) != 0 {
+		if err := h.RunPythonCmd(true, "-m", "pip", "--version"); err != nil {
+			fmt.Printf("Pip not installed, you need install pip to deploy your agent\n")
+			return err
+		}
+
+		fmt.Println("This may takes a few minutes, you can install missing deps by yourself: ")
+		for _, deps := range missingDeps {
+			fmt.Println("- ", deps)
+		}
+
+		cmd := exec.Command("python3", "-m", "venv", venvDir)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			fmt.Println("failed to create python virtual environment", string(output))
+			return err
+		}
+		path := os.Getenv("PATH")
+		newPath := venvDir + "/bin:" + path
+		err = os.Setenv("PATH", newPath)
+		if err != nil {
+			fmt.Println("Failed to set PATH:", err)
+			return err
+		}
+		err = os.Setenv("VIRTUAL_ENV", venvDir)
+		if err != nil {
+			fmt.Println("Failed to set VIRTUAL_ENV:", err)
+			return err
+		}
+		for _, deps := range missingDeps {
+			if err := h.RunPythonCmd(true, "-m", "pip", "install", deps); err != nil {
+				fmt.Printf("failed to install missing deps: %s\n", deps)
+				return err
+			}
+
+		}
+		fmt.Println("Missing deps installed successfully, target python venv path: ", venvDir)
+	}
+	return nil
+}
+
+func (h *AgentHandler) runAgent() error {
+	if err := h.checkAgentRequiredEnvironment(); err != nil {
+		return fmt.Errorf("environment check failed: %w", err)
+	}
+
+	if _, err := os.Stat(h.AgentDir); os.IsNotExist(err) {
+		return fmt.Errorf("agent source file not found: %s", h.AgentDir)
+	}
+
+	if err := h.startAgentProcess(); err != nil {
+		return err
+	}
+
+	fmt.Printf(
+		"🌟 You can deploy it to higress by using: hgctl agent add %s %s\n",
+		h.AgentName, fmt.Sprintf("http://%s:%d", h.HostBinding, h.DeploymentPort))
 
 	return nil
 
 }
 
-func runAgent(agentName string) error {
-
-	_, err := checkAgentEnvironment(agentName)
-	if err != nil {
-		return fmt.Errorf("environment check failed: %w", err)
-	}
-
-	agentDir := filepath.Join(util.GetHomeHgctlDir(), "agents")
-	agentDir = filepath.Join(agentDir, agentName, "agent.py")
-
-	if _, err := os.Stat(agentDir); os.IsNotExist(err) {
-		return fmt.Errorf("agent file not found: %s", agentDir)
-	}
-
-	// if len(envCheck.MissingDeps) > 0 {
-	// 	fmt.Println(color.YellowString("⚠️  Some dependencies are missing. Installing..."))
-	// 	if err := installAgentDependencies(agentName); err != nil {
-	// 		return fmt.Errorf("dependency installation failed: %w", err)
-	// 	}
-	// } else {
-	// 	fmt.Println(color.GreenString("✅ All dependencies already installed!"))
-	// }
-	// fmt.Println()
-
-	return startAgentProcess(agentDir, agentName)
-}
-
-func startAgentProcess(agentPath, agentName string) error {
+func (h *AgentHandler) startAgentProcess() error {
 	switch runtime.GOOS {
 	case "windows":
-		return runWindowsAgent(agentPath, agentName)
+		return h.runWindowsAgent()
 	case "darwin", "linux":
-		return runUnixAgent(agentPath, agentName)
+		return h.runUnixAgent()
 	default:
 		return fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
 	}
 }
 
-func runUnixAgent(agentPath, agentName string) error {
-	// // 检查端口是否被占用
-	// port, err := getAgentPort(agentName)
-	// if err != nil {
-	// 	return fmt.Errorf("failed to get agent port: %w", err)
-	// }
-
-	// if isPortInUse(port) {
-	// 	color.Yellow("⚠️  Port %d is already in use", port)
-	// 	return fmt.Errorf("port %d is already in use", port)
-	// }
-
-	// 启动Python agent
-	cmd := exec.Command("python3", agentPath)
-
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
-
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("failed to start agent: %w", err)
+func (h *AgentHandler) runUnixAgent() error {
+	if err := h.RunPythonCmd(true, h.AgentFile); err != nil {
+		fmt.Println("failed to start agent, exiting...")
+		return err
 	}
-
-	return cmd.Wait()
+	return nil
 }
 
-func runWindowsAgent(agentPath, agentName string) error {
-	cmd := exec.Command("python3", agentPath)
-
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
-
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("failed to start agent: %w", err)
+func (h *AgentHandler) runWindowsAgent() error {
+	if err := h.RunPythonCmd(true, h.AgentFile); err != nil {
+		fmt.Println("failed to start agent, exiting...")
+		return err
 	}
-
-	return cmd.Wait()
-}
-
-func getAgentPort(agentName string) (int, error) {
-	// 这里可以从配置文件中读取端口号
-	// 默认返回8090
-	return 8090, nil
+	return nil
 }
 
 func isPortInUse(port int) bool {
-	// 检查端口是否被占用
 	cmd := exec.Command("lsof", "-i", fmt.Sprintf(":%d", port))
 	if err := cmd.Run(); err != nil {
 		return false

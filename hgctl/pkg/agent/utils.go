@@ -764,5 +764,4 @@ func showConfigSummary(config *AgentConfig) {
 		}
 	}
 	fmt.Println()
-	fmt.Println()
 }

@@ -22,7 +22,6 @@ func listAgents() {
 	color.Cyan("📋 Available Agents:")
 	fmt.Println()
 
-	// TODO:
 	agentsDir := "agents"
 	if _, err := os.Stat(agentsDir); os.IsNotExist(err) {
 		color.Yellow("No agents found. Create one with 'hgctl new agent <name>'")
@@ -46,9 +45,7 @@ func listAgents() {
 			agentDir := filepath.Join(agentsDir, agentName)
 			agentPath := filepath.Join(agentDir, "agent.py")
 
-			// 检查agent.py是否存在
 			if _, err := os.Stat(agentPath); err == nil {
-				// 获取agent信息
 				status := getAgentStatus(agentName)
 				fmt.Printf("  🤖 %s - %s\n", agentName, status)
 			} else {
@@ -57,6 +54,10 @@ func listAgents() {
 		}
 	}
 	fmt.Println()
+}
+
+func getAgentPort(name string) (int, error) {
+	return 8090, nil
 }
 
 func getAgentStatus(agentName string) string {
