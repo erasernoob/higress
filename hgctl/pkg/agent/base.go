@@ -18,6 +18,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/AlecAivazis/survey/v2"
+	"github.com/alibaba/higress/hgctl/pkg/agent/services"
 	"github.com/spf13/viper"
 )
 
@@ -98,6 +100,79 @@ func resolveHigressConsoleAuth(arg *HigressConsoleAuthArg) {
 			fmt.Printf("failed to get local higress console credential: %s\n", err)
 		}
 	}
+}
+
+func parseTypeToAPIProductType(typ string) string {
+	switch typ {
+	case "a2a":
+		return "AGENT_API"
+	case "restful":
+		return "REST_API"
+	case "model":
+		return "MODEL_API"
+	case "mcp":
+		return "MCP_SERVER"
+	default:
+		return ""
+	}
+}
+
+// This function serves MCP API as well as Model API for now.
+func publishAPIToHimarket(typ, name string, arg HimarketAdminAuthArg) error {
+
+	if err := arg.validate(); err != nil {
+		return err
+	}
+
+	// hgName := "hgctl-higress"
+	// hgAddress := arg.hgURL
+	// hgUsername := arg.hgUser
+	// hgPassword := arg.hgPassword
+
+	client := services.NewHimarketClient(arg.hmURL, arg.hmUser, arg.hmPassword)
+	// if resp, err := services.HandleAddHigressInstance(client, services.BuildAddHigressInstanceBody(hgName, hgAddress, hgUsername, hgPassword)); err != nil {
+	// 	fmt.Println(string(resp))
+	// 	return err
+	// }
+
+	productName := fmt.Sprintf("%s-%s", typ, name)
+
+	var gatewayId string
+	prompt := survey.Input{
+		Message: "Enter the target Higress instance id on Himarket:",
+		Default: "",
+		Help:    fmt.Sprintf("refers to %s/consoles/gateway to get your target Higress instance's id", arg.hmURL),
+	}
+
+	if err := survey.AskOne(&prompt, &gatewayId); err != nil {
+		return fmt.Errorf("failed to get target higress gatewayID: %s", err)
+	}
+
+	body := services.BuildAPIProductBody(productName, "An agent API import by hgctl", parseTypeToAPIProductType(typ))
+	resp, err := services.HandleAddAPIProduct(client, body)
+	if err != nil {
+		fmt.Println(resp)
+		return err
+	}
+
+	product_id := string(resp)
+	var refBody map[string]interface{}
+
+	if typ == "mcp" {
+		refBody = services.BuildRefMCPAPIProductBody(gatewayId, product_id, name)
+	} else {
+		// target_route is the route_name in Higress, refers to `publishAgentAPIToHigress`
+		target_route := fmt.Sprintf("%s-route", name)
+		refBody = services.BuildRefModelAPIProductBody(gatewayId, product_id, target_route)
+
+	}
+
+	if resp, err := services.HandleRefAPIProduct(client, product_id, refBody); err != nil {
+		fmt.Println(string(resp))
+		return err
+	}
+
+	return nil
 }
 
 // set up the core env

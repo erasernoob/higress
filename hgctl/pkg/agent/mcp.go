@@ -32,24 +32,30 @@ import (
 type MCPType string
 
 const (
-	HTTP         string = "http"
-	SSE          string = "sse"
-	OPENAPI      string = "openapi"
+	OPENAPI string = "openapi"
+	HTTP    string = "http"
+
+	STREAMABLE string = "streamable"
+	SSE        string = "sse"
+
 	DIRECT_ROUTE string = "DIRECT_ROUTE"
 	OPEN_API     string = "OPEN_API"
 )
 
 type MCPAddArg struct {
 	HigressConsoleAuthArg
+	HimarketAdminAuthArg
 
 	name      string
 	url       string
 	typ       string
+	transport string
 	spec      string
 	scope     string
-	noPublish bool
 	env       []string
 	header    []string
+	noPublish bool
+	asProduct bool
 }
 
 type MCPAddHandler struct {
@@ -74,22 +80,37 @@ func newMCPAddCmd() *cobra.Command {
 	arg := &MCPAddArg{}
 
 	cmd := &cobra.Command{
-		Use:   "add [name]",
+		Use:   "add [name] [url]",
 		Short: "add mcp server including http and openapi",
+		Example: `  # Add HTTP type MCP Server 
+  hgctl mcp add http-mcp http://localhost:8080/mcp
+
+  # Add MCP Server use Openapi file  
+  hgctl mcp add swagger-mcp ./path/to/openapi.yaml -t openapi`,
 		Run: func(cmd *cobra.Command, args []string) {
+
 			arg.name = args[0]
+			if arg.typ == HTTP {
+				arg.url = args[1]
+			} else {
+				arg.spec = args[1]
+			}
+
 			resolveHigressConsoleAuth(&arg.HigressConsoleAuthArg)
+			resolveHimarketAdminAuth(&arg.HimarketAdminAuthArg)
 			cmdutil.CheckErr(handleAddMCP(cmd.OutOrStdout(), *arg))
 			color.Cyan("Tip: Try doing 'kubectl port-forward' and add the server to the agent manually, if MCP Server connection failed")
 		},
-		Args: cobra.ExactArgs(1),
+		Args: cobra.ExactArgs(2),
 	}
 
-	cmd.PersistentFlags().StringVarP(&arg.typ, "type", "t", HTTP, "Determine the MCP Server's Type")
-	cmd.PersistentFlags().StringVarP(&arg.url, "url", "u", "", "MCP server URL")
+	cmd.PersistentFlags().StringVar(&arg.typ, "type", HTTP, "Determine the MCP Server's Type")
+	cmd.PersistentFlags().StringVarP(&arg.transport, "transport", "t", STREAMABLE, `The MCP Server's transport`)
 	cmd.PersistentFlags().StringVarP(&arg.scope, "scope", "s", "project", `Configuration scope (project or global)`)
-	cmd.PersistentFlags().StringVar(&arg.spec, "spec", "", "Specification file (yaml/json) of the openapi api")
 	cmd.PersistentFlags().BoolVar(&arg.noPublish, "no-publish", false, "If set then the mcp server will not be plubished to higress")
+	cmd.PersistentFlags().BoolVar(&arg.asProduct, "as-product", false, "If it's set then the agent API will be published to Himarket (no-publish must be false)")
+
+	// cmd.PersistentFlags().StringVar(&arg.spec, "spec", "", "Specification file (yaml/json) of the openapi api")
 
 	addHigressConsoleAuthFlag(cmd, &arg.HigressConsoleAuthArg)
 
@@ -114,7 +135,7 @@ func (h *MCPAddHandler) addHTTPMCP() error {
 	}
 
 	if !h.arg.noPublish {
-		return publishToHigress(h.arg, nil)
+		return publishMCPToHigress(h.arg, h.arg.typ, nil)
 	}
 	return nil
 
@@ -128,7 +149,7 @@ func (h *MCPAddHandler) addOpenAPIMCP() error {
 	// fmt.Printf("get config struct: %v", config)
 
 	// publish to higress
-	if err := publishToHigress(h.arg, config); err != nil {
+	if err := publishMCPToHigress(h.arg, "streamable", config); err != nil {
 		return err
 	}
 
@@ -159,7 +180,10 @@ func handleAddMCP(w io.Writer, arg MCPAddArg) error {
 	// noPublish -> typ
 	switch arg.typ {
 	case HTTP:
-		return h.addHTTPMCP()
+		if err := h.addHTTPMCP(); err != nil {
+			return err
+		}
+
 	case OPENAPI:
 		if arg.spec == "" {
 			return fmt.Errorf("--spec is required for openapi type")
@@ -170,13 +194,25 @@ func handleAddMCP(w io.Writer, arg MCPAddArg) error {
 		if arg.url != "" {
 			return fmt.Errorf("--url is not supported for openapi type")
 		}
-		return h.addOpenAPIMCP()
-	default:
-		return fmt.Errorf("unsupported mcp type")
+		if err := h.addOpenAPIMCP(); err != nil {
+			return err
+		}
+
 	}
+
+	fmt.Print(arg.noPublish, arg.asProduct)
+	if !arg.noPublish && arg.asProduct {
+		if err := publishAPIToHimarket("mcp", arg.name, arg.HimarketAdminAuthArg); err != nil {
+			fmt.Println("failed to publish it to himarket, please do it mannually")
+			return err
+		}
+	}
+
+	return nil
+
 }
 
-func publishToHigress(arg MCPAddArg, config *models.MCPConfig) error {
+func publishMCPToHigress(arg MCPAddArg, transport string, config *models.MCPConfig) error {
 	// 1. parse the raw http url
 	// 2. add service source
 	// 3. add MCP server request
@@ -212,16 +248,21 @@ func publishToHigress(arg MCPAddArg, config *models.MCPConfig) error {
 		"weight":  100,
 	}}
 
-	// Parse again to get `upstreamPathPrefix`
-	res, _ := url.Parse(rawURL)
-
 	body = map[string]interface{}{
 		"name": arg.name,
 		//   "description": "",
-		"type":               mcpType,
-		"service":            targetSrvName,
-		"upstreamPathPrefix": res.Path,
-		"services":           srvField,
+		"type":     mcpType,
+		"service":  targetSrvName,
+		"services": srvField,
+	}
+
+	// Only DIRECT_ROUTE Type get below extra params
+	if mcpType == DIRECT_ROUTE {
+		res, _ := url.Parse(rawURL)
+		body["directRouteConfig"] = map[string]interface{}{
+			"path":          res.Path,
+			"transportType": arg.transport,
+		}
 	}
 
 	_, err = services.HandleAddMCPServer(client, body)

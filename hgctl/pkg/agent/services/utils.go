@@ -133,13 +133,25 @@ func BuildAPIProductBody(name, desc, typ string) map[string]interface{} {
 	}
 }
 
-func BuildRefAPIProductBody(gateway_id, product_id, target_route string) map[string]interface{} {
+func BuildRefModelAPIProductBody(gateway_id, product_id, target_route string) map[string]interface{} {
 	return map[string]interface{}{
 		"gatewayId":  gateway_id,
 		"sourceType": "GATEWAY",
 		"productId":  product_id,
 		"higressRefConfig": map[string]interface{}{
 			"modelRouteName":  target_route,
+			"fromGatewayType": "HIGRESS",
+		},
+	}
+}
+
+func BuildRefMCPAPIProductBody(gateway_id, product_id, mcp_name string) map[string]interface{} {
+	return map[string]interface{}{
+		"gatewayId":  gateway_id,
+		"sourceType": "GATEWAY",
+		"productId":  product_id,
+		"higressRefConfig": map[string]interface{}{
+			"mcpServerName":   mcp_name,
 			"fromGatewayType": "HIGRESS",
 		},
 	}

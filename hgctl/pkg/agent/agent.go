@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/alibaba/higress/hgctl/pkg/agent/services"
 	"github.com/spf13/cobra"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
@@ -103,61 +102,13 @@ func handleAddAgent(writer io.Writer, arg AgentAddArg) error {
 		fmt.Printf("Agent %s is published to Higress successfully\n", arg.name)
 
 		if arg.asProduct {
-			if err := publishAgentAPIToHimarket(arg); err != nil {
+			if err := publishAPIToHimarket(arg.typ, arg.name, arg.HimarketAdminAuthArg); err != nil {
 				fmt.Println("failed to publish it to himarket, please do it mannually")
 				return err
 			}
 			fmt.Printf("Agent %s is published to Himarket successfully\n", arg.name)
 		}
 		// TODO: pop up higress window
-	}
-
-	return nil
-}
-
-func publishAgentAPIToHimarket(arg AgentAddArg) error {
-	if err := arg.HimarketAdminAuthArg.validate(); err != nil {
-		return err
-	}
-
-	// hgName := "hgctl-higress"
-	// hgAddress := arg.hgURL
-	// hgUsername := arg.hgUser
-	// hgPassword := arg.hgPassword
-
-	client := services.NewHimarketClient(arg.hmURL, arg.hmUser, arg.hmPassword)
-	// if resp, err := services.HandleAddHigressInstance(client, services.BuildAddHigressInstanceBody(hgName, hgAddress, hgUsername, hgPassword)); err != nil {
-	// 	fmt.Println(string(resp))
-	// 	return err
-	// }
-	var gatewayId string
-	prompt := survey.Input{
-		Message: "Enter the target Higress instance id on Himarket:",
-		Default: "",
-		Help:    fmt.Sprintf("refers to %s/consoles/gateway to get your target Higress instance's id", arg.hmURL),
-	}
-
-	if err := survey.AskOne(&prompt, &gatewayId); err != nil {
-		return fmt.Errorf("failed to get target higress gatewayID: %s", err)
-	}
-
-	productName := fmt.Sprintf("agent-%s", arg.name)
-
-	body := services.BuildAPIProductBody(productName, "An agent API import by hgctl", parseTypeToAPIProductType(arg.typ))
-	resp, err := services.HandleAddAPIProduct(client, body)
-	if err != nil {
-		fmt.Println(resp)
-		return err
-	}
-
-	product_id := string(resp)
-	// target_route is the route_name in Higress, refers to `publishAgentAPIToHigress``
-	target_route := fmt.Sprintf("%s-route", arg.name)
-
-	body = services.BuildRefAPIProductBody(gatewayId, product_id, target_route)
-	if resp, err := services.HandleRefAPIProduct(client, product_id, body); err != nil {
-		fmt.Println(resp)
-		return err
 	}
 
 	return nil
@@ -179,7 +130,7 @@ func publishAgentAPIToHigress(arg AgentAddArg) error {
 		// add ai route
 		body = services.BuildAIRouteServiceBody(arg.name, arg.url)
 		if res, err := services.HandleAddAIRoute(client, body); err != nil {
-			fmt.Println(res)
+			fmt.Println(string(res))
 			return err
 		}
 
@@ -212,17 +163,4 @@ func validateArg(arg AgentAddArg) error {
 		return arg.HigressConsoleAuthArg.validate()
 	}
 	return nil
-}
-
-func parseTypeToAPIProductType(typ string) string {
-	switch typ {
-	case "a2a":
-		return "AGENT_API"
-	case "restful":
-		return "REST_API"
-	case "model":
-		return "MODEL_API"
-	default:
-		return ""
-	}
 }

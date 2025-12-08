@@ -369,7 +369,7 @@ func convertMCPConfigToStr(cfg *models.MCPConfig) string {
 }
 
 func GetHigressGatewayServiceIP() (string, error) {
-	color.Cyan("🚀 Adding openapi MCP Server to agent, checking Higress Gateway Pod status...")
+	color.Cyan("🚀 Adding openapi MCP Server from higress to agent, checking Higress Gateway Pod status...")
 
 	defaultKubeconfig := filepath.Join(os.Getenv("HOME"), ".kube", "config")
 	config, err := clientcmd.BuildConfigFromFlags("", defaultKubeconfig)

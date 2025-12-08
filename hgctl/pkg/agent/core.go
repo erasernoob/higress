@@ -137,8 +137,12 @@ func (c *AgenticCore) Start() error {
 
 // ------- MCP  -------
 func (c *AgenticCore) AddMCPServer(arg MCPAddArg) error {
+	// adapt the field
+	if arg.transport == STREAMABLE {
+		arg.transport = HTTP
+	}
 	args := []string{
-		"mcp", "add", "--transport", arg.typ, arg.name, arg.url,
+		"mcp", "add", "--transport", arg.transport, arg.name, arg.url,
 	}
 	if arg.scope != "" {
 		scopeArg := []string{"--scope", arg.scope}
