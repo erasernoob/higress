@@ -26,7 +26,6 @@ import (
 	"github.com/fatih/color"
 	"github.com/higress-group/openapi-to-mcpserver/pkg/models"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
 
@@ -38,10 +37,6 @@ const (
 	OPENAPI      string = "openapi"
 	DIRECT_ROUTE string = "DIRECT_ROUTE"
 	OPEN_API     string = "OPEN_API"
-
-	HIGRESS_CONSOLE_URL      = "higress-console-url"
-	HIGRESS_CONSOLE_USER     = "higress-console-user"
-	HIGRESS_CONSOLE_PASSWORD = "higress-console-password"
 )
 
 type MCPAddArg struct {
@@ -257,28 +252,6 @@ func addMCPToolConfig(client *services.HigressClient, config *models.MCPConfig, 
 		os.Exit(1)
 	}
 	// fmt.Println("get openapi tools add response: ", string(resp))
-}
-
-// resolve from viper
-func resolveHigressConsoleAuth(arg *HigressConsoleAuthArg) {
-	if arg.hgURL == "" {
-		arg.hgURL = viper.GetString(HIGRESS_CONSOLE_URL)
-	}
-	if arg.hgUser == "" {
-		arg.hgUser = viper.GetString(HIGRESS_CONSOLE_USER)
-	}
-	if arg.hgPassword == "" {
-		arg.hgPassword = viper.GetString(HIGRESS_CONSOLE_PASSWORD)
-	}
-
-	// fmt.Printf("arg: %v\n", arg)
-
-	if arg.hgUser == "" || arg.hgPassword == "" {
-		// Here we do not return this error, because it will failed when validate arg
-		if err := tryToGetLocalCredential(arg); err != nil {
-			fmt.Printf("failed to get local higress console credential: %s\n", err)
-		}
-	}
 }
 
 func tryToGetLocalCredential(arg *HigressConsoleAuthArg) error {

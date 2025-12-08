@@ -27,7 +27,7 @@ func BuildAIProviderServiceBody(name, url string) map[string]interface{} {
 
 func BuildAIRouteServiceBody(name, _url string) map[string]interface{} {
 	return map[string]interface{}{
-		"name": fmt.Sprintf("%s-api", name),
+		"name": fmt.Sprintf("%s-route", name),
 		// "version": "627198", // It's unecessary to provide when create a new one
 		"domains": []interface{}{},
 		"pathPredicate": map[string]interface{}{
@@ -98,7 +98,7 @@ func BuildServiceBodyAndSrvName(name, urlStr string) (map[string]interface{}, st
 
 func BuildAPIRouteBody(name, srv string) map[string]interface{} {
 	return map[string]interface{}{
-		"name": name,
+		"name": fmt.Sprintf("%s-route", name),
 		"path": map[string]interface{}{
 			"matchType":     "PRE",      // default is PREFIX
 			"matchValue":    "/process", // default is "/process"
@@ -113,5 +113,34 @@ func BuildAPIRouteBody(name, srv string) map[string]interface{} {
 			},
 		},
 	}
+}
 
+func BuildAddHigressInstanceBody(name, addr, username, password string) map[string]interface{} {
+	return map[string]interface{}{
+		"gatewayName": name,
+		"gatewayType": "HIGRESS",
+		"higressConfig": map[string]interface{}{
+			"address":  addr,
+			"username": username,
+			"password": password,
+		},
+	}
+}
+
+func BuildAPIProductBody(name, desc, typ string) map[string]interface{} {
+	return map[string]interface{}{
+		"name": name, "description": desc, "type": typ,
+	}
+}
+
+func BuildRefAPIProductBody(gateway_id, product_id, target_route string) map[string]interface{} {
+	return map[string]interface{}{
+		"gatewayId":  gateway_id,
+		"sourceType": "GATEWAY",
+		"productId":  product_id,
+		"higressRefConfig": map[string]interface{}{
+			"modelRouteName":  target_route,
+			"fromGatewayType": "HIGRESS",
+		},
+	}
 }

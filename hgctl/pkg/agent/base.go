@@ -17,6 +17,8 @@ package agent
 import (
 	"fmt"
 	"os"
+
+	"github.com/spf13/viper"
 )
 
 const (
@@ -26,7 +28,28 @@ const (
 	NodeLeastVersion = 18
 	AgentInstallCmd  = "npm install -g @anthropic-ai/claude-code"
 	AgentReleasePage = "https://docs.claude.com/en/docs/claude-code/setup"
+
+	HIGRESS_CONSOLE_URL      = "higress-console-url"
+	HIGRESS_CONSOLE_USER     = "higress-console-user"
+	HIGRESS_CONSOLE_PASSWORD = "higress-console-password"
+
+	HIMARKET_ADMIN_URL      = "himarket-admin-url"
+	HIMARKET_ADMIN_USER     = "himarket-admin-user"
+	HIMARKET_ADMIN_PASSWORD = "himarket-admin-password"
 )
+
+type HimarketAdminAuthArg struct {
+	hmURL      string
+	hmUser     string
+	hmPassword string
+}
+
+func (h *HimarketAdminAuthArg) validate() error {
+	if h.hmURL == "" || h.hmUser == "" || h.hmPassword == "" {
+		return fmt.Errorf("invalid args")
+	}
+	return nil
+}
 
 type HigressConsoleAuthArg struct {
 	// higress console auth arg
@@ -41,6 +64,40 @@ func (h *HigressConsoleAuthArg) validate() error {
 		return fmt.Errorf("invalid args")
 	}
 	return nil
+}
+
+func resolveHimarketAdminAuth(arg *HimarketAdminAuthArg) {
+	if arg.hmURL == "" {
+		arg.hmURL = viper.GetString(HIMARKET_ADMIN_URL)
+	}
+	if arg.hmUser == "" {
+		arg.hmUser = viper.GetString(HIMARKET_ADMIN_USER)
+	}
+	if arg.hmPassword == "" {
+		arg.hmPassword = viper.GetString(HIMARKET_ADMIN_PASSWORD)
+	}
+}
+
+// resolve from viper
+func resolveHigressConsoleAuth(arg *HigressConsoleAuthArg) {
+	if arg.hgURL == "" {
+		arg.hgURL = viper.GetString(HIGRESS_CONSOLE_URL)
+	}
+	if arg.hgUser == "" {
+		arg.hgUser = viper.GetString(HIGRESS_CONSOLE_USER)
+	}
+	if arg.hgPassword == "" {
+		arg.hgPassword = viper.GetString(HIGRESS_CONSOLE_PASSWORD)
+	}
+
+	// fmt.Printf("arg: %v\n", arg)
+
+	if arg.hgUser == "" || arg.hgPassword == "" {
+		// Here we do not return this error, because it will failed when validate arg
+		if err := tryToGetLocalCredential(arg); err != nil {
+			fmt.Printf("failed to get local higress console credential: %s\n", err)
+		}
+	}
 }
 
 // set up the core env
@@ -58,8 +115,6 @@ func getAgent() *AgenticCore {
 }
 
 func checkAgentInstallStatus() bool {
-	// TODO: Support cross-platform:windows
-
 	if !checkNodeInstall() {
 		if err := promptNodeInstall(); err != nil {
 			return false

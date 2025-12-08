@@ -15,6 +15,7 @@
 package services
 
 import (
+	"encoding/json"
 	"fmt"
 )
 
@@ -139,4 +140,32 @@ func HandleAddAIRoute(client *HigressClient, body interface{}) ([]byte, error) {
 
 func HandleAddRoute(client *HigressClient, body interface{}) ([]byte, error) {
 	return client.Post("/v1/routes", body)
+}
+
+// Himarket-related
+func HandleAddHigressInstance(client *HimarketClient, body interface{}) ([]byte, error) {
+	// This will not return the higress-gatway-id
+	return client.Post("/api/v1/gateways", body)
+}
+
+func HandleAddAPIProduct(client *HimarketClient, body interface{}) ([]byte, error) {
+	data, err := client.Post("/api/v1/products", body)
+	if err != nil {
+		return data, err
+	}
+	var response map[string]interface{}
+	if err := json.Unmarshal(data, &response); err != nil {
+		return nil, fmt.Errorf("failed to get product id from response: %s", err)
+	}
+
+	if res, ok := response["data"].(map[string]interface{}); ok {
+		if productId, ok := res["productId"].(string); ok {
+			return []byte(productId), nil
+		}
+	}
+	return data, fmt.Errorf("failed to get product id from response")
+}
+
+func HandleRefAPIProduct(client *HimarketClient, product_id string, body interface{}) ([]byte, error) {
+	return client.Post(fmt.Sprintf("/api/v1/products/%s/ref", product_id), body)
 }
