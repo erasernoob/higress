@@ -17,9 +17,9 @@ package agent
 import (
 	"fmt"
 	"io"
-	"net"
 	"net/url"
 	"os"
+	"strings"
 
 	"github.com/alibaba/higress/hgctl/pkg/agent/services"
 	"github.com/alibaba/higress/hgctl/pkg/helm"
@@ -197,61 +197,37 @@ func publishToHigress(arg MCPAddArg, config *models.MCPConfig) error {
 		mcpType = OPEN_API
 	}
 
-	res, err := url.Parse(rawURL)
-	if err != nil {
-		return err
-	}
-
-	// add service source
-	srvType := ""
-	srvPort := ""
 	srvName := fmt.Sprintf("hgctl-%s", arg.name)
-	srvPath := res.Path
 
-	if ip := net.ParseIP(res.Hostname()); ip == nil {
-		srvType = "dns"
-	} else {
-		srvType = "static"
+	// e.g. agent-jarvis.static.8090
+	body, targetSrvName, err := services.BuildServiceBodyAndSrvName(srvName, rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid url format: %s", err)
 	}
 
-	if res.Port() == "" && res.Scheme == "http" {
-		srvPort = "80"
-	} else if res.Port() == "" && res.Scheme == "https" {
-		srvPort = "443"
-	} else {
-		srvPort = res.Port()
-	}
-
-	resp, err := services.HandleAddServiceSource(client, map[string]interface{}{
-		"domain":        res.Host,
-		"type":          srvType,
-		"port":          srvPort,
-		"name":          srvName,
-		"domainForEdit": res.Host,
-		"protocol":      res.Scheme,
-	})
+	resp, err := services.HandleAddServiceSource(client, body)
 	if err != nil {
 		return fmt.Errorf("response body: %s %s\n", string(resp), err)
 	}
 
 	srvField := []map[string]interface{}{{
-		"name":    fmt.Sprintf("%s.%s", srvName, srvType),
-		"port":    srvPort,
+		"name":    targetSrvName,
+		"port":    strings.Split(targetSrvName, ":")[1],
 		"version": "1.0",
 		"weight":  100,
 	}}
 
-	// generete mcp server add request body
-	body := map[string]interface{}{
+	// Parse again to get `upstreamPathPrefix`
+	res, _ := url.Parse(rawURL)
+
+	body = map[string]interface{}{
 		"name": arg.name,
 		//   "description": "",
 		"type":               mcpType,
-		"service":            fmt.Sprintf("%s.%s:%s", srvName, srvType, srvPort),
-		"upstreamPathPrefix": srvPath,
+		"service":            targetSrvName,
+		"upstreamPathPrefix": res.Path,
 		"services":           srvField,
 	}
-
-	// fmt.Printf("request body: %v", body)
 
 	_, err = services.HandleAddMCPServer(client, body)
 	if err != nil {

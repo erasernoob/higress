@@ -17,8 +17,6 @@ package agent
 import (
 	"fmt"
 	"io"
-	"net"
-	"net/url"
 
 	"github.com/alibaba/higress/hgctl/pkg/agent/services"
 	"github.com/spf13/cobra"
@@ -49,10 +47,6 @@ func NewAgentCmd() *cobra.Command {
 
 func handleAgentInvoke(w io.Writer) error {
 	return getAgent().Start()
-}
-
-type Publisher struct {
-	inner services.HigressClient
 }
 
 type AgentAddArg struct {
@@ -91,7 +85,6 @@ func newAgentAddCmd() *cobra.Command {
 }
 
 func handleAddAgent(writer io.Writer, arg AgentAddArg) error {
-	// agent := getAgent()
 	if err := validateArg(arg); err != nil {
 		return err
 	}
@@ -104,136 +97,42 @@ func handleAddAgent(writer io.Writer, arg AgentAddArg) error {
 	return nil
 }
 
-func (p *Publisher) addAIProvider(body interface{}) {
-
-}
-
 func publishAgentEndpointToHigress(arg AgentAddArg) error {
 	client := services.NewHigressClient(arg.hgURL, arg.hgUser, arg.hgPassword)
-	// publisher := Publisher{inner: *client}
 
 	switch arg.typ {
 	case A2A:
 	case MODEL:
 		// add ai service
-		customBaseURL := fmt.Sprintf("%s/compatible-mode/v1", arg.url)
-		body := map[string]interface{}{
-			"type":     "openai",
-			"name":     arg.name,
-			"tokens":   []string{},
-			"version":  0,
-			"protocol": "openai/v1",
-			"tokenFailoverConfig": map[string]interface{}{
-				"enabled": false,
-			},
-			"proxyName": "",
-			"rawConfigs": map[string]interface{}{
-				"openaiExtraCustomUrls": []string{},
-				"openaiCustomUrl":       customBaseURL,
-			},
-		}
+		body := services.BuildAIProviderServiceBody(arg.name, arg.url)
 		if resp, err := services.HandleAddAIProviderService(client, body); err != nil {
 			fmt.Println(string(resp))
 			return err
 		}
 
 		// add ai route
-		if res, err := services.HandleAddAIRoute(client, map[string]interface{}{
-			"name": fmt.Sprintf("%s-api", arg.name),
-			// "version": "627198", // 创建时不需提供
-			"domains": []interface{}{},
-			"pathPredicate": map[string]interface{}{
-				"matchType":     "PRE",
-				"matchValue":    "/",
-				"caseSensitive": false,
-			},
-			"headerPredicates":   []interface{}{},
-			"urlParamPredicates": []interface{}{},
-			"upstreams": []interface{}{
-				map[string]interface{}{
-					"provider":     arg.name,
-					"weight":       100,
-					"modelMapping": map[string]interface{}{},
-				},
-			},
-			"modelPredicates": []interface{}{},
-			"authConfig": map[string]interface{}{
-				"enabled":                false,
-				"allowedCredentialTypes": nil,
-				"allowedConsumers":       []interface{}{},
-			},
-			"fallbackConfig": map[string]interface{}{
-				"enabled":          false,
-				"upstreams":        nil,
-				"fallbackStrategy": nil,
-				"responseCodes":    nil,
-			},
-		}); err != nil {
+		body = services.BuildAIRouteServiceBody(arg.name, arg.url)
+		if res, err := services.HandleAddAIRoute(client, body); err != nil {
 			fmt.Println(res)
 			return err
 		}
 
 	case REST:
-		res, err := url.Parse(arg.url)
-		if err != nil {
-			return err
-		}
-
-		// add service source
-		srvType := ""
-		srvPort := ""
 		srvName := fmt.Sprintf("agent-%s", arg.name)
-
-		if ip := net.ParseIP(res.Hostname()); ip == nil {
-			srvType = "dns"
-		} else {
-			srvType = "static"
+		body, targetSrvName, err := services.BuildServiceBodyAndSrvName(srvName, arg.url)
+		if err != nil {
+			return fmt.Errorf("invalid url format: %s", err)
 		}
 
-		if res.Port() == "" && res.Scheme == "http" {
-			srvPort = "80"
-		} else if res.Port() == "" && res.Scheme == "https" {
-			srvPort = "443"
-		} else {
-			srvPort = res.Port()
-		}
-
-		if resp, err := services.HandleAddServiceSource(client, map[string]interface{}{
-			"domain":        res.Host,
-			"type":          srvType,
-			"port":          srvPort,
-			"name":          srvName,
-			"domainForEdit": res.Host,
-			"protocol":      res.Scheme,
-		}); err != nil {
+		if resp, err := services.HandleAddServiceSource(client, body); err != nil {
 			fmt.Println(string(resp))
 			return err
 		}
 
-		// e.g. agent-jarvis.static.8090
-		targetSrvName := fmt.Sprintf("%s.%s:%s", srvName, srvType, srvPort)
-
-		// add route
-		if resp, err := services.HandleAddRoute(client, map[string]interface{}{
-			"name": arg.name,
-			"path": map[string]interface{}{
-				"matchType":     "PRE",      // default is PREFIX
-				"matchValue":    "/process", // default is "/process"
-				"caseSensitive": true,
-			},
-			"authConfig": map[string]interface{}{
-				"enabled": false,
-			},
-			"services": []map[string]interface{}{
-				{
-					"name": targetSrvName,
-				},
-			},
-		}); err != nil {
+		if resp, err := services.HandleAddRoute(client, services.BuildAPIRouteBody(arg.name, targetSrvName)); err != nil {
 			fmt.Println(string(resp))
 			return err
 		}
-
 	default:
 		return fmt.Errorf("unsupported agent protocol type: %s", arg.typ)
 
