@@ -54,7 +54,7 @@ var binaryName = AgentBinaryName
 
 // ------ cmd related  ------
 func addHigressConsoleAuthFlag(cmd *cobra.Command, arg *HigressConsoleAuthArg) {
-	cmd.PersistentFlags().StringVar(&arg.baseURL, HIGRESS_CONSOLE_URL, "", "The BaseURL of higress console")
+	cmd.PersistentFlags().StringVar(&arg.hgURL, HIGRESS_CONSOLE_URL, "", "The BaseURL of higress console")
 	cmd.PersistentFlags().StringVar(&arg.hgUser, HIGRESS_CONSOLE_USER, "", "The username of higress console")
 	cmd.PersistentFlags().StringVarP(&arg.hgPassword, HIGRESS_CONSOLE_PASSWORD, "p", "", "The password of higress console")
 
@@ -528,12 +528,10 @@ func getAgentConfig(name string) (*AgentConfig, error) {
 	config.AgentName = name
 	config.AppName = name
 
-	fmt.Println()
 	cyan.Printf("🤖 Let's configure your agent '%s'\n", name)
 	fmt.Println()
 
 	sysPromptDefault := fmt.Sprintf("You're a helpful assistant named %s.", name)
-	fmt.Println()
 	purple.Println("📝 System Prompt")
 	fmt.Println("  This defines the agent's personality and behavior")
 
@@ -577,17 +575,8 @@ func getAgentConfig(name string) (*AgentConfig, error) {
 	fmt.Println()
 	purple.Println("🤖 AI Model")
 	fmt.Println("  Choose the AI model that powers this agent")
-	promptModelName := &survey.Select{
+	promptModelName := &survey.Input{
 		Message: "Which AI model to use?",
-		Options: []string{
-			"qwen-flash",
-			"qwen-max",
-			"gpt-4",
-			"gpt-3.5-turbo",
-			"claude-3-sonnet",
-			"claude-3-opus",
-			"gemini-pro",
-		},
 		Default: "qwen-flash",
 	}
 	if err := survey.AskOne(promptModelName, &config.ChatModel); err != nil {
@@ -637,8 +626,6 @@ func getAgentConfig(name string) (*AgentConfig, error) {
 		return nil, err
 	}
 
-	fmt.Println()
-	purple.Println("⚡ Response Settings")
 	fmt.Println("  How the agent responds to user input")
 	promptStreaming := &survey.Confirm{
 		Message: "Enable streaming responses?",
@@ -659,15 +646,11 @@ func getAgentConfig(name string) (*AgentConfig, error) {
 	fmt.Println()
 	purple.Println("🔗 MCP Server Configuration")
 	cyan.Println("  Configure multiple MCP servers if you want to use external tools")
-	yellow.Println("  Press Enter to finish adding MCP servers")
-	fmt.Println()
-
 	config.MCPServers = []MCPServerConfig{}
 
 	for {
 		var mcpserver MCPServerConfig
 
-		// MCP Server URL
 		promptMCPServer := &survey.Input{
 			Message: "MCP Server URL (or press Enter to finish):",
 			Default: "",
@@ -676,7 +659,6 @@ func getAgentConfig(name string) (*AgentConfig, error) {
 			break
 		}
 
-		// MCP Server URL
 		promptMCPTransport := &survey.Input{
 			Message: "transport:",
 			Default: "streamable_http",
@@ -684,10 +666,9 @@ func getAgentConfig(name string) (*AgentConfig, error) {
 		if err := survey.AskOne(promptMCPTransport, &mcpserver.Transport); err != nil || mcpserver.Transport == "" {
 			break
 		}
-		// trim URL
+
 		mcpserver.URL = strings.TrimSpace(mcpserver.URL)
 
-		// MCP Client Name
 		mcpNameDefault := fmt.Sprintf("%s-mcp-%d", config.AgentName, len(config.MCPServers)+1)
 		promptMCPName := &survey.Input{
 			Message: "MCP Client Name:",
@@ -697,8 +678,6 @@ func getAgentConfig(name string) (*AgentConfig, error) {
 			return nil, err
 		}
 
-		// HTTP Headers
-		fmt.Println()
 		yellow.Printf("📋 HTTP Headers for '%s' (optional)\n", mcpserver.Name)
 		cyan.Println("  Add custom headers for MCP server requests")
 		yellow.Println("  Press Enter to finish adding headers")
@@ -729,10 +708,8 @@ func getAgentConfig(name string) (*AgentConfig, error) {
 			}
 		}
 
-		// 添加到配置列表
 		config.MCPServers = append(config.MCPServers, mcpserver)
 
-		fmt.Println()
 		green.Printf("✅ Added MCP server: %s\n", mcpserver.Name)
 		fmt.Println()
 	}

@@ -185,9 +185,8 @@ func publishToHigress(arg MCPAddArg, config *models.MCPConfig) error {
 	// 1. parse the raw http url
 	// 2. add service source
 	// 3. add MCP server request
-	client := services.NewHigressClient(arg.baseURL, arg.hgUser, arg.hgPassword)
+	client := services.NewHigressClient(arg.hgURL, arg.hgUser, arg.hgPassword)
 
-	// mcp server's url
 	rawURL := arg.url
 	// DIRECT_ROUTE or OPEN_API
 	mcpType := DIRECT_ROUTE
@@ -286,8 +285,8 @@ func addMCPToolConfig(client *services.HigressClient, config *models.MCPConfig, 
 
 // resolve from viper
 func resolveHigressConsoleAuth(arg *HigressConsoleAuthArg) {
-	if arg.baseURL == "" {
-		arg.baseURL = viper.GetString(HIGRESS_CONSOLE_URL)
+	if arg.hgURL == "" {
+		arg.hgURL = viper.GetString(HIGRESS_CONSOLE_URL)
 	}
 	if arg.hgUser == "" {
 		arg.hgUser = viper.GetString(HIGRESS_CONSOLE_USER)

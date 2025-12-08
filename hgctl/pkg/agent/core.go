@@ -70,7 +70,7 @@ func (c *AgenticCore) Setup() {
 
 func (c *AgenticCore) addHigressAPIMCP() error {
 	arg := &HigressConsoleAuthArg{
-		baseURL:    "",
+		hgURL:      "",
 		hgUser:     "",
 		hgPassword: "",
 	}
@@ -84,7 +84,7 @@ func (c *AgenticCore) addHigressAPIMCP() error {
 		fmt.Println("failed to run gateway prompt: ", err)
 	}
 
-	arg.baseURL = gateway
+	arg.hgURL = gateway
 
 	if err := tryToGetLocalCredential(arg); err != nil || arg.hgUser == "" || arg.hgPassword == "" {
 		// fallback: interact with user to provide password & username
@@ -121,7 +121,7 @@ func (c *AgenticCore) addHigressAPIMCP() error {
 
 	return c.AddMCPServer(MCPAddArg{
 		name:  "higress-api",
-		url:   fmt.Sprintf("%s/higress-api", arg.baseURL),
+		url:   fmt.Sprintf("%s/higress-api", arg.hgURL),
 		typ:   HTTP,
 		scope: "user",
 		header: []string{

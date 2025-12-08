@@ -127,3 +127,16 @@ func HandleAddMCPServer(client *HigressClient, body interface{}) ([]byte, error)
 func HandleAddOpenAPITool(client *HigressClient, body interface{}) ([]byte, error) {
 	return client.Put("/v1/mcpServer", body)
 }
+
+func HandleAddAIProviderService(client *HigressClient, body interface{}) ([]byte, error) {
+	return client.Post("/v1/ai/providers", body)
+
+}
+
+func HandleAddAIRoute(client *HigressClient, body interface{}) ([]byte, error) {
+	return client.Post("/v1/ai/routes", body)
+}
+
+func HandleAddRoute(client *HigressClient, body interface{}) ([]byte, error) {
+	return client.Post("/v1/routes", body)
+}

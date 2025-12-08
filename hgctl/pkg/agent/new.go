@@ -221,10 +221,10 @@ func (h *AgentHandler) checkRequiredDeps() error {
 		missingDeps = append(missingDeps, "agentscope-runtime==1.0.0")
 	}
 
-	venvDir := filepath.Join(util.GetHomeHgctlDir(), ".venv")
-	h.PythonVenvPath = venvDir
-
 	if len(missingDeps) != 0 {
+		venvDir := filepath.Join(util.GetHomeHgctlDir(), ".venv")
+		h.PythonVenvPath = venvDir
+
 		if err := h.RunPythonCmd(true, "-m", "pip", "--version"); err != nil {
 			fmt.Printf("Pip not installed, you need install pip to deploy your agent\n")
 			return err
@@ -298,6 +298,7 @@ func (h *AgentHandler) startAgentProcess() error {
 }
 
 func (h *AgentHandler) runUnixAgent() error {
+	fmt.Println(h.PythonVenvPath)
 	if err := h.RunPythonCmd(true, h.AgentFile); err != nil {
 		fmt.Println("failed to start agent, exiting...")
 		return err

@@ -30,13 +30,13 @@ const (
 
 type HigressConsoleAuthArg struct {
 	// higress console auth arg
-	baseURL    string
+	hgURL      string
 	hgUser     string
 	hgPassword string
 }
 
 func (h *HigressConsoleAuthArg) validate() error {
-	if h.baseURL == "" || h.hgUser == "" || h.hgPassword == "" {
+	if h.hgURL == "" || h.hgUser == "" || h.hgPassword == "" {
 		fmt.Println("--higress-console-user, --higress-console-url, --higress-console-password must be provided")
 		return fmt.Errorf("invalid args")
 	}
