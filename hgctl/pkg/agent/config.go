@@ -23,6 +23,13 @@ import (
 	"github.com/spf13/viper"
 )
 
+type AgentCore string
+
+const (
+	CLAUDE_CODE AgentCore = "claude"
+	QODER_CLI   AgentCore = "qodercli"
+)
+
 const (
 	// AgentBinaryName  = "claude"
 	// BinaryVersion    = "0.1.0"
@@ -44,7 +51,8 @@ const (
 var GlobalConfig HgctlAgentConfig
 
 type HgctlAgentConfig struct {
-	AGENT_CORE string `mapstructure:"hgctl-agent-core"`
+	AGENT_CORE AgentCore `mapstructure:"hgctl-agent-core"`
+
 	// Higress Console credentials
 	HigressConsoleURL      string `mapstructure:"higress-console-url"`
 	HigressConsoleUser     string `mapstructure:"higress-console-user"`
@@ -59,26 +67,30 @@ type HgctlAgentConfig struct {
 }
 
 func InitConfig() {
-	v := viper.New()
-	v.SetConfigName(".hgctl")
-	v.SetConfigType("json")
+	viper.SetConfigName(".hgctl")
+	viper.SetConfigType("json")
 
 	home, err := homedir.Dir()
 	if err != nil {
 		log.Fatalf("Error finding home directory: %v", err)
 	}
 
-	v.AddConfigPath(home)
+	viper.AddConfigPath(home)
 
-	// Set Defaults
-	// v.SetDefault(HIGRESS_GATEWAY_URL, "http://localhost:80")
-
-	if err := v.ReadInConfig(); err != nil {
+	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			fmt.Fprintf(os.Stderr, "Fatal error reading config file: %v\n", err)
 		}
 	}
 
 	// Unmarshal into the GlobalConfig variable
-	_ = v.Unmarshal(&GlobalConfig)
+	_ = viper.Unmarshal(&GlobalConfig)
+
+	switch viper.GetString(HGCTL_AGENT_CORE) {
+	case string(CLAUDE_CODE), string(QODER_CLI):
+		return
+	default:
+		viper.SetDefault(HGCTL_AGENT_CORE, string(CLAUDE_CODE))
+	}
+
 }

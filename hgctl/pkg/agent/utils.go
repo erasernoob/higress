@@ -50,7 +50,7 @@ const (
 	SecretConsolePwd  = "adminPassword"
 )
 
-var binaryName = AgentBinaryName
+var binaryName string
 
 // ------ cmd related  ------
 func addHigressConsoleAuthFlag(cmd *cobra.Command, arg *HigressConsoleAuthArg) {

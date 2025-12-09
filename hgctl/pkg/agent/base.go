@@ -24,7 +24,6 @@ import (
 )
 
 const (
-	AgentBinaryName  = "claude"
 	BinaryVersion    = "0.1.0"
 	DevVersion       = "dev"
 	NodeLeastVersion = 18
@@ -63,6 +62,7 @@ func (h *HigressConsoleAuthArg) validate() error {
 func init() {
 	// Init the global configuration from config file
 	InitConfig()
+	binaryName = viper.GetString(HGCTL_AGENT_CORE)
 }
 
 func resolveHimarketAdminAuth(arg *HimarketAdminAuthArg) {

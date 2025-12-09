@@ -27,16 +27,20 @@ import (
 	"github.com/spf13/viper"
 )
 
-type AgenticCore struct{}
+type AgenticCore struct {
+	binaryName string
+}
 
 func NewAgenticCore() *AgenticCore {
-	core := &AgenticCore{}
+	core := &AgenticCore{
+		binaryName: viper.GetString(HGCTL_AGENT_CORE),
+	}
 	core.Setup()
 	return core
 }
 
 func (c *AgenticCore) run(args ...string) error {
-	cmd := exec.Command(AgentBinaryName, args...)
+	cmd := exec.Command(c.binaryName, args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
