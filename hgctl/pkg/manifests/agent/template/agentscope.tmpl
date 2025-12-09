@@ -40,6 +40,13 @@ app = AgentApp(
     app_description="{{.AppDescription}}",
 )
 
+def load_sys_prompt(prompt_file_name="prompt.md"):
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    prompt_path = os.path.join(script_dir, prompt_file_name)
+    
+    with open(prompt_path, 'r', encoding='utf-8') as f:
+        return f.read()
+
 
 @app.init
 async def init_func(self):
@@ -114,7 +121,7 @@ async def query_func(self, msgs, request: AgentRequest, **kwargs):
             enable_thinking={{.EnableThinking | boolToPython}},
             stream={{.EnableStreaming | boolToPython}},
         ),
-        sys_prompt="{{.SysPrompt}}",
+        sys_prompt=load_sys_prompt(),
         toolkit=toolkit,
         memory=AgentScopeSessionHistoryMemory(
             service=self.session_service,

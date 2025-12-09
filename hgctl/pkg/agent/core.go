@@ -39,6 +39,27 @@ func NewAgenticCore() *AgenticCore {
 	return core
 }
 
+func (c *AgenticCore) runWithResult(args ...string) (string, error) {
+	cmd := exec.Command(c.binaryName, args...)
+
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	// output, err := cmd.Output()
+	// if err != nil {
+	// 	if exitErr, ok := err.(*exec.ExitError); ok {
+	// 		return "", fmt.Errorf("agent execution failed with exit code %d: %s\nStderr: %s",
+	// 			exitErr.ExitCode(), err.Error(), exitErr.Stderr)
+	// 	}
+	// 	return "", fmt.Errorf("failed to run agent: %w", err)
+	// }
+
+	// return string(output), nil
+	return "", cmd.Run()
+	// os.Exit(1)
+	// return "", nil
+}
+
 func (c *AgenticCore) run(args ...string) error {
 	cmd := exec.Command(c.binaryName, args...)
 	cmd.Stdin = os.Stdin
@@ -52,16 +73,25 @@ func (c *AgenticCore) run(args ...string) error {
 func (c *AgenticCore) Setup() {
 	// Check if this is the first time, otherwise directly return (this is a simple check)
 	homeDir, _ := os.UserHomeDir()
-	targetDir := filepath.Join(homeDir, ".hgctl")
-	if _, err := os.Stat(targetDir); err == nil {
+	targetCtlDir := filepath.Join(homeDir, ".hgctl")
+	if _, err := os.Stat(targetCtlDir); err == nil {
 		return
 	}
 
-	// Setup subagent plugins file
+	targetCoreDir := filepath.Join(homeDir, fmt.Sprintf(".%s", viper.GetString(HGCTL_AGENT_CORE)))
+
+	// setup subagent plugins file
 	embedFS := manifests.BuiltinOrDir("")
-	if err := manifests.ExtractEmbedFiles(embedFS, "agent", targetDir); err != nil {
+	if err := manifests.ExtractEmbedFiles(embedFS, "agent", targetCtlDir); err != nil {
 		fmt.Println(err)
-		fmt.Println("failed to init plugins for claude code")
+		fmt.Println("failed to init plugins for agent core")
+		os.Exit(1)
+	}
+
+	// Setup predefined files like command
+	if err := manifests.ExtractEmbedFiles(embedFS, "agent", targetCoreDir); err != nil {
+		fmt.Println(err)
+		fmt.Println("failed to init commands for agent core")
 		os.Exit(1)
 	}
 

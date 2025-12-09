@@ -47,7 +47,7 @@ type AgentConfig struct {
 	AppDescription  string   //  "A helpful assistant and useful agent"
 	AgentName       string   //  "Friday"
 	AvailableTools  []string //   availiable tools (built-in agentscope)
-	SysPrompt       string   //  "You are a helpful assistant"
+	SysPromptPath   string   //  "You are a helpful assistant"
 	ChatModel       string   //  "qwen-max"
 	APIKeyEnvVar    string   //  DASHCOPE_API_KEY
 	DeploymentPort  int      //  8090
@@ -67,13 +67,11 @@ type AgentHandler struct {
 
 func createAgentCmd() *cobra.Command {
 	var createAgentCmd = &cobra.Command{
-		Use:   "new agent [name]",
-		Short: "create a new agent",
-		Args:  cobra.ExactArgs(1),
+		Use:   "new agent",
+		Short: "create a new agent or import one from core",
+		Args:  cobra.ExactArgs(0),
 		Run: func(cmd *cobra.Command, args []string) {
-			name := args[0]
-
-			config, err := getAgentConfig(name)
+			config, err := getAgentConfig()
 			if err != nil {
 				fmt.Printf("Error get Agent config: %v\n", err)
 				os.Exit(1)
@@ -85,7 +83,7 @@ func createAgentCmd() *cobra.Command {
 			}
 
 			agentDir := filepath.Join(util.GetHomeHgctlDir(), "agents")
-			agentFile := filepath.Join(agentDir, name, "agent.py")
+			agentFile := filepath.Join(agentDir, config.AgentName, "agent.py")
 
 			handler := &AgentHandler{
 				AgentConfig:    config,
@@ -94,7 +92,7 @@ func createAgentCmd() *cobra.Command {
 				AgentFile:      agentFile,
 			}
 
-			fmt.Printf("Agent '%s' created successfully! Start to deploy it to local...\n", name)
+			fmt.Printf("Agent '%s' created successfully! Start to deploy it to local...\n", config.AgentName)
 			if err := handler.runAgent(); err != nil {
 				fmt.Printf("Error deploy agent: %v\n", err)
 				os.Exit(1)

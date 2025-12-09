@@ -30,6 +30,7 @@ import (
 	"github.com/alibaba/higress/hgctl/pkg/helm"
 	"github.com/alibaba/higress/hgctl/pkg/installer"
 	"github.com/alibaba/higress/hgctl/pkg/kubernetes"
+	"github.com/alibaba/higress/hgctl/pkg/util"
 	"github.com/alibaba/higress/v2/pkg/cmd/options"
 	"github.com/braydonk/yaml"
 	"github.com/fatih/color"
@@ -525,14 +526,121 @@ func getAllProfiles() ([]*installer.ProfileContext, error) {
 	return profileContexts, nil
 }
 
-func getAgentConfig(name string) (*AgentConfig, error) {
+func getAgentConfig() (*AgentConfig, error) {
+	options := []string{
+		"create step by step",
+		"import existing one from current agentcore",
+	}
 
+	var response string
+	prompt := &survey.Select{
+		Message: "How would you like to create a agent",
+		Options: options,
+	}
+
+	if err := survey.AskOne(prompt, &response); err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+
+	switch response {
+	case options[0]:
+		return createAgentStepByStep()
+	case options[1]:
+		return importAgentFromCore()
+	}
+	return nil, fmt.Errorf("Unsupport way to create a agent")
+}
+
+func importAgentFromCore() (*AgentConfig, error) {
+	config := &AgentConfig{}
+	home, _ := os.UserHomeDir()
+	coreAgentsDir := filepath.Join(home,viper.GetString(HGCTL_AGENT_CORE), "agents")
+
+	files, err := os.ReadDir(coreAgentsDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read core agents directory (%s): %w", coreAgentsDir, err)
+	}
+
+	var agentNames []string
+	agentContentMap := make(map[string]string)
+
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+
+		filename := file.Name()
+		if !strings.HasSuffix(filename, ".md") {
+			continue // Only process markdown files
+		}
+
+		agentName := strings.TrimSuffix(filename, ".md")
+
+		filePath := filepath.Join(coreAgentsDir, filename)
+		contentBytes, err := os.ReadFile(filePath)
+		if err != nil {
+			fmt.Printf("⚠️ Warning: Failed to read content of agent file %s: %v\n", filename, err)
+			continue
+		}
+
+		agentNames = append(agentNames, agentName)
+		agentContentMap[agentName] = string(contentBytes)
+	}
+
+	if len(agentNames) == 0 {
+		return nil, fmt.Errorf("no agent files (*.md) found in the core directory: %s", coreAgentsDir)
+	}
+
+	var selectedAgentName string
+	prompt := &survey.Select{
+		Message: "Select an Agent to import:",
+		Options: agentNames,
+	}
+
+	err = survey.AskOne(prompt, &selectedAgentName, survey.WithIcons(func(icons *survey.IconSet) {
+		icons.SelectFocus.Text = "»" // A nicer icon for selection
+	}))
+
+	if err != nil {
+		return nil, fmt.Errorf("agent selection failed or was interrupted: %w", err)
+	}
+
+	promptContent, ok := agentContentMap[selectedAgentName]
+	if !ok {
+		return nil, fmt.Errorf("internal error: could not find prompt for selected agent: %s", selectedAgentName)
+	}
+
+	// Set the selected agent name in the config
+	config.AgentName = selectedAgentName
+
+	targetFileName := selectedAgentName + ".md" // Ensure the target file has the .md extension
+
+	config.SysPromptPath = filepath.Join(util.GetHomeHgctlDir(), "agents", targetFileName)
+	if err := writeAgentPromptFile(config.SysPromptPath, selectedAgentName, promptContent); err != nil {
+		fmt.Println("❌ failed to write prompt to target file: ", config.SysPromptPath)
+		return nil, err
+	}
+
+	return config, nil
+
+}
+
+func createAgentStepByStep() (*AgentConfig, error) {
 	purple := color.New(color.FgMagenta, color.Bold)
 	cyan := color.New(color.FgCyan)
 	yellow := color.New(color.FgYellow)
 	green := color.New(color.FgGreen)
-
 	config := &AgentConfig{}
+
+	name := ""
+	namePrompt := &survey.Input{
+		Message: "What is the agent's name?",
+		Default: "",
+	}
+	if err := survey.AskOne(namePrompt, &name); err != nil {
+		return nil, err
+	}
 
 	config.AgentName = name
 	config.AppName = name
@@ -540,17 +648,87 @@ func getAgentConfig(name string) (*AgentConfig, error) {
 	cyan.Printf("🤖 Let's configure your agent '%s'\n", name)
 	fmt.Println()
 
-	sysPromptDefault := fmt.Sprintf("You're a helpful assistant named %s.", name)
 	purple.Println("📝 System Prompt")
 	fmt.Println("  This defines the agent's personality and behavior")
 
-	// TODO: generate the promptSysPrompt by LLM
-	promptSysPrompt := &survey.Input{
-		Message: "What is the system prompt for this agent?",
-		Default: sysPromptDefault,
+	options := []string{
+		"input directly",
+		"use existing markdown file",
+		"use LLM to generate",
 	}
-	if err := survey.AskOne(promptSysPrompt, &config.SysPrompt); err != nil {
+
+	var response string
+	prompt := &survey.Select{
+		Message: "How would you like to set the agent's SysPrompt",
+		Options: options,
+	}
+	if err := survey.AskOne(prompt, &response); err != nil {
+		fmt.Println(err)
 		return nil, err
+	}
+
+	switch response {
+	case options[0]:
+		var prompt string
+		sysPromptDefault := fmt.Sprintf("You're a helpful assistant named %s.", name)
+		promptSysPrompt := &survey.Input{
+			Message: "What is the system prompt for this agent?",
+			Default: sysPromptDefault,
+		}
+		if err := survey.AskOne(promptSysPrompt, &prompt); err != nil {
+			return nil, err
+		}
+
+		// create the prompt file and save it to ~/.hgctl/agents/<name>
+		config.SysPromptPath = filepath.Join(util.GetHomeHgctlDir(), "agents", config.AgentName)
+		if err := writeAgentPromptFile(config.SysPromptPath, name, prompt); err != nil {
+			fmt.Println("failed to write prompt to target file: ", config.SysPromptPath)
+			return nil, err
+		}
+
+	case options[1]:
+		var target string
+		promptSysPrompt := &survey.Input{
+			Message: "Enter the target prompt file path:",
+		}
+		if err := survey.AskOne(promptSysPrompt, &target); err != nil {
+			return nil, err
+		}
+		content, err := os.ReadFile(target)
+
+		if err != nil {
+			fmt.Printf("❌ Failed to read the target file (%s): %v\n", target, err)
+			return nil, fmt.Errorf("failed to read source file: %w", err)
+		}
+		prompt := string(content)
+
+		config.SysPromptPath = filepath.Join(util.GetHomeHgctlDir(), "agents", config.AgentName)
+		if err := writeAgentPromptFile(config.SysPromptPath, name, prompt); err != nil {
+			fmt.Println("failed to write prompt to target file: ", config.SysPromptPath)
+			return nil, err
+		}
+
+	case options[2]:
+		var desc string
+		descPrompt := &survey.Input{
+			Message: "Describe what this agent should do (be comprehensive for best results)",
+			Default: "Help me write unit tests for my code...",
+		}
+		if err := survey.AskOne(descPrompt, &desc); err != nil {
+			return nil, err
+		}
+		fmt.Println("generating...")
+		prompt, err := generateAgentPromptByCore(desc)
+		if err != nil {
+			fmt.Printf("failed to generate prompt use agent core: %s\n", err)
+			return nil, err
+		}
+
+		config.SysPromptPath = filepath.Join(util.GetHomeHgctlDir(), "agents", config.AgentName)
+		if err := writeAgentPromptFile(config.SysPromptPath, name, prompt); err != nil {
+			fmt.Println("failed to write prompt to target file: ", config.SysPromptPath)
+			return nil, err
+		}
 	}
 
 	fmt.Println()
@@ -726,6 +904,19 @@ func getAgentConfig(name string) (*AgentConfig, error) {
 	showConfigSummary(config)
 
 	return config, nil
+}
+
+// Write given prompt to ~/.hgctl/agents/<name>/<prompt.md>
+func writeAgentPromptFile(dir, name, prompt string) error {
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create agent directory %s: %w", dir, err)
+	}
+	filePath := filepath.Join(dir, "prompt.md")
+
+	if err := os.WriteFile(filePath, []byte(prompt), 0644); err != nil {
+		return fmt.Errorf("failed to write prompt file %s: %w", filePath, err)
+	}
+	return nil
 }
 
 // Print agent config summary to user

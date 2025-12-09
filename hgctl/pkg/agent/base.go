@@ -172,6 +172,17 @@ func publishAPIToHimarket(typ, name string, arg HimarketAdminAuthArg) error {
 	return nil
 }
 
+// use pre-defined command /gen-agent to generate sys prompt
+func generateAgentPromptByCore(desc string) (string, error) {
+	core := NewAgenticCore()
+	//
+	prompt, err := core.runWithResult(fmt.Sprintf("/gen-agent %s", desc), "--print")
+	if err != nil {
+		return "", err
+	}
+	return prompt, nil
+}
+
 // set up the core env
 // 1. check if npm is installed
 // 2. check the npm version
