@@ -113,6 +113,7 @@ func newMCPAddCmd() *cobra.Command {
 	// cmd.PersistentFlags().StringVar(&arg.spec, "spec", "", "Specification file (yaml/json) of the openapi api")
 
 	addHigressConsoleAuthFlag(cmd, &arg.HigressConsoleAuthArg)
+	addHimarketAdminAuthFlag(cmd, &arg.HimarketAdminAuthArg)
 
 	return cmd
 }

@@ -56,7 +56,16 @@ var binaryName = AgentBinaryName
 func addHigressConsoleAuthFlag(cmd *cobra.Command, arg *HigressConsoleAuthArg) {
 	cmd.PersistentFlags().StringVar(&arg.hgURL, HIGRESS_CONSOLE_URL, "", "The BaseURL of higress console")
 	cmd.PersistentFlags().StringVar(&arg.hgUser, HIGRESS_CONSOLE_USER, "", "The username of higress console")
-	cmd.PersistentFlags().StringVarP(&arg.hgPassword, HIGRESS_CONSOLE_PASSWORD, "p", "", "The password of higress console")
+	cmd.PersistentFlags().StringVar(&arg.hgPassword, HIGRESS_CONSOLE_PASSWORD, "", "The password of higress console")
+
+	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
+	viper.AutomaticEnv()
+}
+
+func addHimarketAdminAuthFlag(cmd *cobra.Command, arg *HimarketAdminAuthArg) {
+	cmd.PersistentFlags().StringVar(&arg.hmURL, HIMARKET_ADMIN_URL, "", "The BaseURL of himarket")
+	cmd.PersistentFlags().StringVar(&arg.hmUser, HIMARKET_ADMIN_USER, "", "The username of himarket")
+	cmd.PersistentFlags().StringVar(&arg.hmPassword, HIMARKET_ADMIN_PASSWORD, "", "The password of himarket")
 
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	viper.AutomaticEnv()

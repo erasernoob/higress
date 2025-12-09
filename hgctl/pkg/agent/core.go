@@ -24,6 +24,7 @@ import (
 	"github.com/alibaba/higress/hgctl/pkg/manifests"
 	"github.com/fatih/color"
 	"github.com/manifoldco/promptui"
+	"github.com/spf13/viper"
 )
 
 type AgenticCore struct{}
@@ -40,7 +41,6 @@ func (c *AgenticCore) run(args ...string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
-
 }
 
 // setup additional prequisite environment and plugins manifest to user's profile
@@ -66,47 +66,54 @@ func (c *AgenticCore) Setup() {
 		fmt.Println("Details information on Higress-api MCP server refers to https://github.com/alibaba/higress/blob/main/plugins/golang-filter/mcp-server/servers/higress/higress-api/README_en.md")
 		return
 	}
+	fmt.Println("Higress-api MCP server added successfully")
 }
 
 func (c *AgenticCore) addHigressAPIMCP() error {
 	arg := &HigressConsoleAuthArg{
-		hgURL:      "",
-		hgUser:     "",
-		hgPassword: "",
+		hgURL:      viper.GetString(HIGRESS_GATEWAY_URL),
+		hgUser:     viper.GetString(HIGRESS_CONSOLE_USER),
+		hgPassword: viper.GetString(HIGRESS_CONSOLE_PASSWORD),
 	}
 	fmt.Println("Initializing...Add prequisite MCP server (Higress-api MCP server) automatically")
-	gatewayPrompt := promptui.Prompt{
-		Label:   "Enter higress gateway URL",
-		Default: "http://127.0.0.1:80",
-	}
-	gateway, err := gatewayPrompt.Run()
-	if err != nil {
-		fmt.Println("failed to run gateway prompt: ", err)
+
+	if arg.hgURL == "" {
+		gatewayPrompt := promptui.Prompt{
+			Label:   "Enter higress gateway URL",
+			Default: "http://127.0.0.1:80",
+		}
+		gateway, err := gatewayPrompt.Run()
+		if err != nil {
+			fmt.Println("failed to run gateway prompt: ", err)
+			return err
+		}
+		arg.hgURL = gateway
+
 	}
 
-	arg.hgURL = gateway
-
-	if err := tryToGetLocalCredential(arg); err != nil || arg.hgUser == "" || arg.hgPassword == "" {
-		// fallback: interact with user to provide password & username
-		color.Red("failed to get higress-console credential automatically (Need install higress by hgctl). Let's fix it manually")
-		userPrompt := promptui.Prompt{
-			Label:   "Enter higress console username",
-			Default: "admin",
+	if arg.hgURL == "" || arg.hgPassword == "" {
+		if err := tryToGetLocalCredential(arg); err != nil || arg.hgUser == "" || arg.hgPassword == "" {
+			// fallback: interact with user to provide password & username
+			color.Red("failed to get higress-console credential automatically (Requires higress installed by hgctl). Let's do it manually")
+			userPrompt := promptui.Prompt{
+				Label:   "Enter higress console username",
+				Default: "admin",
+			}
+			username, err := userPrompt.Run()
+			if err != nil {
+				return fmt.Errorf("aborted: %v", err)
+			}
+			pwdPrompt := promptui.Prompt{
+				Label:   "Enter higress console password",
+				Default: "admin",
+			}
+			pwd, err := pwdPrompt.Run()
+			if err != nil {
+				return fmt.Errorf("aborted: %v", err)
+			}
+			arg.hgUser = username
+			arg.hgPassword = pwd
 		}
-		username, err := userPrompt.Run()
-		if err != nil {
-			return fmt.Errorf("aborted: %v", err)
-		}
-		pwdPrompt := promptui.Prompt{
-			Label:   "Enter higress console password",
-			Default: "admin",
-		}
-		pwd, err := pwdPrompt.Run()
-		if err != nil {
-			return fmt.Errorf("aborted: %v", err)
-		}
-		arg.hgUser = username
-		arg.hgPassword = pwd
 	}
 
 	if arg.hgUser == "" || arg.hgPassword == "" {
@@ -120,10 +127,11 @@ func (c *AgenticCore) addHigressAPIMCP() error {
 	authHeader := fmt.Sprintf("Authorization: Basic %s", resStr)
 
 	return c.AddMCPServer(MCPAddArg{
-		name:  "higress-api",
-		url:   fmt.Sprintf("%s/higress-api", arg.hgURL),
-		typ:   HTTP,
-		scope: "user",
+		name:      "higress-api",
+		url:       fmt.Sprintf("%s/higress-api", arg.hgURL),
+		transport: HTTP,
+		typ:       HTTP,
+		scope:     "user",
 		header: []string{
 			authHeader,
 		},
@@ -132,7 +140,7 @@ func (c *AgenticCore) addHigressAPIMCP() error {
 
 // ------- Initialization  -------
 func (c *AgenticCore) Start() error {
-	return c.run(AgentBinaryName)
+	return c.run()
 }
 
 // ------- MCP  -------

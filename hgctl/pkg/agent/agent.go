@@ -85,6 +85,7 @@ func newAgentAddCmd() *cobra.Command {
 	cmd.PersistentFlags().BoolVar(&arg.asProduct, "as-product", false, "If it's set then the agent API will be published to Himarket (no-publish must be false)")
 
 	addHigressConsoleAuthFlag(cmd, &arg.HigressConsoleAuthArg)
+	addHimarketAdminAuthFlag(cmd, &arg.HimarketAdminAuthArg)
 	return cmd
 }
 

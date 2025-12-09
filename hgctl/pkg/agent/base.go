@@ -30,14 +30,6 @@ const (
 	NodeLeastVersion = 18
 	AgentInstallCmd  = "npm install -g @anthropic-ai/claude-code"
 	AgentReleasePage = "https://docs.claude.com/en/docs/claude-code/setup"
-
-	HIGRESS_CONSOLE_URL      = "higress-console-url"
-	HIGRESS_CONSOLE_USER     = "higress-console-user"
-	HIGRESS_CONSOLE_PASSWORD = "higress-console-password"
-
-	HIMARKET_ADMIN_URL      = "himarket-admin-url"
-	HIMARKET_ADMIN_USER     = "himarket-admin-user"
-	HIMARKET_ADMIN_PASSWORD = "himarket-admin-password"
 )
 
 type HimarketAdminAuthArg struct {
@@ -66,6 +58,11 @@ func (h *HigressConsoleAuthArg) validate() error {
 		return fmt.Errorf("invalid args")
 	}
 	return nil
+}
+
+func init() {
+	// Init the global configuration from config file
+	InitConfig()
 }
 
 func resolveHimarketAdminAuth(arg *HimarketAdminAuthArg) {

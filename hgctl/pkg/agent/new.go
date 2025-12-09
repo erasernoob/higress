@@ -68,7 +68,7 @@ type AgentHandler struct {
 func createAgentCmd() *cobra.Command {
 	var createAgentCmd = &cobra.Command{
 		Use:   "new agent [name]",
-		Short: "Create a new agent",
+		Short: "create a new agent",
 		Args:  cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
 			name := args[0]
