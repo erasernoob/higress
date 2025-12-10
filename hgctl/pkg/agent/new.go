@@ -187,7 +187,7 @@ func (h *AgentHandler) checkAgentRequiredEnvironment() error {
 		return err
 	}
 	// TODO: not graceful way to find initial python path
-	if path, err := exec.LookPath("python"); err == nil {
+	if path, err := exec.LookPath("python3"); err == nil {
 		pythonPathAbs, _ := filepath.Abs(path)
 		venvBin := filepath.Dir(pythonPathAbs)
 		venvRoot := filepath.Dir(venvBin)
@@ -207,6 +207,7 @@ func (h *AgentHandler) checkAgentRequiredEnvironment() error {
 }
 
 // Currently only check agentscope and agentscope-runtime
+// TODO: Refactor the check deps logic
 func (h *AgentHandler) checkRequiredDeps() error {
 	missingDeps := []string{}
 	if err := h.RunPythonCmd(false, "-c", "import agentscope; print(agentscope.__version__)"); err != nil {
@@ -221,7 +222,28 @@ func (h *AgentHandler) checkRequiredDeps() error {
 
 	if len(missingDeps) != 0 {
 		venvDir := filepath.Join(util.GetHomeHgctlDir(), ".venv")
-		h.PythonVenvPath = venvDir
+		if _, err := os.Stat(venvDir); err == nil {
+			// check again
+			missingDeps := []string{}
+			if err := h.RunPythonCmd(false, "-c", "import agentscope; print(agentscope.__version__)"); err != nil {
+				fmt.Println("agentscope not installed, installing...")
+				missingDeps = append(missingDeps, "agentscope")
+			}
+			if err := h.RunPythonCmd(false, "-c", "import agentscope_runtime; print(agentscope_runtime.__version__)"); err != nil {
+				fmt.Println("agentscope-runtime not installed, installing...")
+				missingDeps = append(missingDeps, "agentscope-runtime==1.0.0")
+			}
+			// This means ~/.hgctl/.venv/ has already installed the deps before
+			if len(missingDeps) == 0 {
+				h.PythonVenvPath = venvDir
+				err := os.Setenv("VIRTUAL_ENV", venvDir)
+				if err != nil {
+					fmt.Println("Failed to set VIRTUAL_ENV:", err)
+					return err
+				}
+				return nil
+			}
+		}
 
 		if err := h.RunPythonCmd(true, "-m", "pip", "--version"); err != nil {
 			fmt.Printf("Pip not installed, you need install pip to deploy your agent\n")
@@ -239,6 +261,8 @@ func (h *AgentHandler) checkRequiredDeps() error {
 			fmt.Println("failed to create python virtual environment", string(output))
 			return err
 		}
+
+		// TODO: polish the logic
 		path := os.Getenv("PATH")
 		newPath := venvDir + "/bin:" + path
 		err = os.Setenv("PATH", newPath)
@@ -251,6 +275,8 @@ func (h *AgentHandler) checkRequiredDeps() error {
 			fmt.Println("Failed to set VIRTUAL_ENV:", err)
 			return err
 		}
+
+		h.PythonVenvPath = venvDir
 		for _, deps := range missingDeps {
 			if err := h.RunPythonCmd(true, "-m", "pip", "install", deps); err != nil {
 				fmt.Printf("failed to install missing deps: %s\n", deps)
@@ -296,7 +322,6 @@ func (h *AgentHandler) startAgentProcess() error {
 }
 
 func (h *AgentHandler) runUnixAgent() error {
-	fmt.Println(h.PythonVenvPath)
 	if err := h.RunPythonCmd(true, h.AgentFile); err != nil {
 		fmt.Println("failed to start agent, exiting...")
 		return err

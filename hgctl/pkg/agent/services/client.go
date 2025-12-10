@@ -178,7 +178,6 @@ func (c *HimarketClient) request(method, path string, data interface{}) ([]byte,
 	var body io.Reader
 	if data != nil {
 		jsonData, err := json.Marshal(data)
-		fmt.Println("get request:", string(jsonData))
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal request data: %w", err)
 		}
@@ -232,7 +231,6 @@ func (c *HigressClient) request(method, path string, data interface{}) ([]byte, 
 	var body io.Reader
 	if data != nil {
 		jsonData, err := json.Marshal(data)
-		fmt.Println("get request:", string(jsonData))
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal request data: %w", err)
 		}

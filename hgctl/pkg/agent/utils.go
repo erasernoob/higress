@@ -556,7 +556,8 @@ func getAgentConfig() (*AgentConfig, error) {
 func importAgentFromCore() (*AgentConfig, error) {
 	config := &AgentConfig{}
 	home, _ := os.UserHomeDir()
-	coreAgentsDir := filepath.Join(home, viper.GetString(HGCTL_AGENT_CORE), "agents")
+	core := viper.GetString(HGCTL_AGENT_CORE)
+	coreAgentsDir := filepath.Join(home, fmt.Sprintf(".%s", core), "agents")
 
 	files, err := os.ReadDir(coreAgentsDir)
 	if err != nil {
@@ -615,11 +616,82 @@ func importAgentFromCore() (*AgentConfig, error) {
 	// Set the selected agent name in the config
 	config.AgentName = selectedAgentName
 
-	targetFileName := selectedAgentName + ".md" // Ensure the target file has the .md extension
-
-	config.SysPromptPath = filepath.Join(util.GetHomeHgctlDir(), "agents", targetFileName)
+	config.SysPromptPath = filepath.Join(util.GetHomeHgctlDir(), "agents", selectedAgentName)
 	if err := writeAgentPromptFile(config.SysPromptPath, selectedAgentName, promptContent); err != nil {
 		fmt.Println("❌ failed to write prompt to target file: ", config.SysPromptPath)
+		return nil, err
+	}
+
+	// TODO:
+	purple := color.New(color.FgMagenta, color.Bold)
+	fmt.Println()
+	purple.Println("🤖 AI Model")
+	fmt.Println("  Choose the AI model that powers this agent")
+	promptModelName := &survey.Input{
+		Message: "Which AI model to use?",
+		Default: "qwen-flash",
+	}
+	if err := survey.AskOne(promptModelName, &config.ChatModel); err != nil {
+		return nil, err
+	}
+
+	// can also covered by environment
+	if env_model := os.Getenv("AGENT_CHAT_MODEL"); env_model != "" {
+		config.ChatModel = env_model
+	}
+
+	fmt.Println()
+	purple.Println("🔑 API Key Configuration")
+	fmt.Println("  Environment variable name for the API key")
+	promptAPIKey := &survey.Input{
+		Message: "Environment variable name for API key:",
+		Default: "DASHSCOPE_API_KEY",
+	}
+	if err := survey.AskOne(promptAPIKey, &config.APIKeyEnvVar); err != nil {
+		return nil, err
+	}
+
+	fmt.Println()
+	purple.Println("🌐 Deployment Settings")
+	fmt.Println("  Network configuration for the agent")
+	promptPort := &survey.Input{
+		Message: "Deployment port:",
+		Default: "8090",
+	}
+	var portStr string
+
+	if err := survey.AskOne(promptPort, &portStr); err != nil {
+		return nil, err
+	}
+
+	if portNum, err := strconv.Atoi(portStr); err == nil {
+		config.DeploymentPort = portNum
+	} else {
+		config.DeploymentPort = 8090 // 默认值
+	}
+
+	promptHost := &survey.Input{
+		Message: "Host binding:",
+		Default: "0.0.0.0",
+	}
+	if err := survey.AskOne(promptHost, &config.HostBinding); err != nil {
+		return nil, err
+	}
+
+	fmt.Println("  How the agent responds to user input")
+	promptStreaming := &survey.Confirm{
+		Message: "Enable streaming responses?",
+		Default: true,
+	}
+	if err := survey.AskOne(promptStreaming, &config.EnableStreaming); err != nil {
+		return nil, err
+	}
+
+	promptThinking := &survey.Confirm{
+		Message: "Enable thinking mode?",
+		Default: true,
+	}
+	if err := survey.AskOne(promptThinking, &config.EnableThinking); err != nil {
 		return nil, err
 	}
 

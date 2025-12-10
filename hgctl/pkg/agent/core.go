@@ -20,6 +20,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/alibaba/higress/hgctl/pkg/manifests"
 	"github.com/fatih/color"
@@ -196,5 +197,9 @@ func (c *AgenticCore) AddMCPServer(arg MCPAddArg) error {
 			args = append(args, headerArg...)
 		}
 	}
-	return c.run(args...)
+	err := c.run(args...)
+	if err == nil || err != nil && strings.Contains(err.Error(), "already exists") {
+		return nil
+	}
+	return err
 }

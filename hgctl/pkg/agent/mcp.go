@@ -26,6 +26,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/higress-group/openapi-to-mcpserver/pkg/models"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	cmdutil "k8s.io/kubectl/pkg/cmd/util"
 )
 
@@ -86,7 +87,7 @@ func newMCPAddCmd() *cobra.Command {
   hgctl mcp add http-mcp http://localhost:8080/mcp
 
   # Add MCP Server use Openapi file  
-  hgctl mcp add swagger-mcp ./path/to/openapi.yaml -t openapi`,
+  hgctl mcp add swagger-mcp ./path/to/openapi.yaml --type openapi`,
 		Run: func(cmd *cobra.Command, args []string) {
 
 			arg.name = args[0]
@@ -99,7 +100,7 @@ func newMCPAddCmd() *cobra.Command {
 			resolveHigressConsoleAuth(&arg.HigressConsoleAuthArg)
 			resolveHimarketAdminAuth(&arg.HimarketAdminAuthArg)
 			cmdutil.CheckErr(handleAddMCP(cmd.OutOrStdout(), *arg))
-			color.Cyan("Tip: Try doing 'kubectl port-forward' and add the server to the agent manually, if MCP Server connection failed")
+			color.Cyan("Tip: Try doing 'kubectl port-forward' and add the server to the agent manually, if using Higress MCP Server and connection failed")
 		},
 		Args: cobra.ExactArgs(2),
 	}
@@ -155,13 +156,18 @@ func (h *MCPAddHandler) addOpenAPIMCP() error {
 	}
 
 	// add mcp server to agent
-	gatewayIP, err := GetHigressGatewayServiceIP()
-	if err != nil {
-		color.Red(
-			"failed to add mcp server [%s] while getting higress-gateway ip due to: %v \n You may try to do port-forward and add it to agent manually", h.arg.name, err)
-		return err
+	gatewayURL := viper.GetString(HIGRESS_GATEWAY_URL)
+	if gatewayURL == "" {
+		svcIP, err := GetHigressGatewayServiceIP()
+		if err != nil {
+			color.Red(
+				"failed to add mcp server [%s] while getting higress-gateway ip due to: %v \n You may try to do port-forward and add it to agent manually", h.arg.name, err)
+			return err
+		}
+		gatewayURL = svcIP
 	}
-	mcpURL := fmt.Sprintf("http://%s/mcp-servers/%s", gatewayIP, h.arg.name)
+
+	mcpURL := fmt.Sprintf("%s/mcp-servers/%s", gatewayURL, h.arg.name)
 	h.arg.url = mcpURL
 	return h.core.AddMCPServer(h.arg)
 }
@@ -201,7 +207,6 @@ func handleAddMCP(w io.Writer, arg MCPAddArg) error {
 
 	}
 
-	fmt.Print(arg.noPublish, arg.asProduct)
 	if !arg.noPublish && arg.asProduct {
 		if err := publishAPIToHimarket("mcp", arg.name, arg.HimarketAdminAuthArg); err != nil {
 			fmt.Println("failed to publish it to himarket, please do it mannually")
