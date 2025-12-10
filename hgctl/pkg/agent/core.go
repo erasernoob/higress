@@ -42,22 +42,16 @@ func NewAgenticCore() *AgenticCore {
 func (c *AgenticCore) runWithResult(args ...string) (string, error) {
 	cmd := exec.Command(c.binaryName, args...)
 
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	output, err := cmd.Output()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return "", fmt.Errorf("agent execution failed with exit code %d: %s\nStderr: %s",
+				exitErr.ExitCode(), err.Error(), exitErr.Stderr)
+		}
+		return "", fmt.Errorf("failed to run agent: %w", err)
+	}
 
-	// output, err := cmd.Output()
-	// if err != nil {
-	// 	if exitErr, ok := err.(*exec.ExitError); ok {
-	// 		return "", fmt.Errorf("agent execution failed with exit code %d: %s\nStderr: %s",
-	// 			exitErr.ExitCode(), err.Error(), exitErr.Stderr)
-	// 	}
-	// 	return "", fmt.Errorf("failed to run agent: %w", err)
-	// }
-
-	// return string(output), nil
-	return "", cmd.Run()
-	// os.Exit(1)
-	// return "", nil
+	return string(output), nil
 }
 
 func (c *AgenticCore) run(args ...string) error {

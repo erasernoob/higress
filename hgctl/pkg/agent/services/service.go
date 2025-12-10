@@ -17,6 +17,7 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 )
 
 func HandleAddServiceSource(client *HigressClient, body interface{}) ([]byte, error) {
@@ -96,6 +97,40 @@ func HandleAddMCPServer(client *HigressClient, body interface{}) ([]byte, error)
 	}
 
 	return resp, nil
+}
+
+// return map[mcp-server-name]{}
+func GetExistingMCPServers(client *HigressClient) (map[string]string, error) {
+	result := make(map[string]string)
+	data, err := HandleListMCPServers(client)
+	if err != nil {
+		return nil, err
+	}
+	var response map[string]interface{}
+	if err := json.Unmarshal(data, &response); err != nil {
+		return nil, fmt.Errorf("failed to get product id from response: %s", err)
+	}
+
+	// fmt.Println(response["data"])
+
+	if list, ok := response["data"].([]interface{}); ok {
+		for _, item := range list {
+			if mcp, ok := item.(map[string]interface{}); ok {
+				if name, ok := mcp["name"].(string); ok {
+					result[name] = ""
+				}
+			}
+		}
+
+	}
+	return result, nil
+}
+
+func HandleListMCPServers(client *HigressClient) ([]byte, error) {
+	ts := time.Now().Unix()
+	pageNum := 1
+	pageSize := 100
+	return client.Get(fmt.Sprintf("/v1/mcpServer?ts=%d&pageNum=%d&pageSize=%d", ts, pageNum, pageSize))
 }
 
 // add OpenAPI MCP tools to higress console, example request body:

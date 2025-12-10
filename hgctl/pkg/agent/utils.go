@@ -27,6 +27,7 @@ import (
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/alibaba/higress/hgctl/pkg/agent/services"
 	"github.com/alibaba/higress/hgctl/pkg/helm"
 	"github.com/alibaba/higress/hgctl/pkg/installer"
 	"github.com/alibaba/higress/hgctl/pkg/kubernetes"
@@ -555,7 +556,7 @@ func getAgentConfig() (*AgentConfig, error) {
 func importAgentFromCore() (*AgentConfig, error) {
 	config := &AgentConfig{}
 	home, _ := os.UserHomeDir()
-	coreAgentsDir := filepath.Join(home,viper.GetString(HGCTL_AGENT_CORE), "agents")
+	coreAgentsDir := filepath.Join(home, viper.GetString(HGCTL_AGENT_CORE), "agents")
 
 	files, err := os.ReadDir(coreAgentsDir)
 	if err != nil {
@@ -717,8 +718,12 @@ func createAgentStepByStep() (*AgentConfig, error) {
 		if err := survey.AskOne(descPrompt, &desc); err != nil {
 			return nil, err
 		}
-		fmt.Println("generating...")
+
+		fmt.Println("generating...(this may take a few minutes, depends on your model)")
 		prompt, err := generateAgentPromptByCore(desc)
+		fmt.Printf("Generate Prompt for agent %s:\n", config.AgentName)
+		fmt.Println(prompt)
+
 		if err != nil {
 			fmt.Printf("failed to generate prompt use agent core: %s\n", err)
 			return nil, err
@@ -753,7 +758,6 @@ func createAgentStepByStep() (*AgentConfig, error) {
 	promptTools := &survey.MultiSelect{
 		Message: "Which tools to enable? (Space to select, Enter to confirm)",
 		Options: ASAvailiableTools,
-		Default: []string{"execute_python_code"},
 	}
 	if err := survey.AskOne(promptTools, &config.AvailableTools); err != nil {
 		return nil, err
@@ -834,6 +838,30 @@ func createAgentStepByStep() (*AgentConfig, error) {
 	purple.Println("🔗 MCP Server Configuration")
 	cyan.Println("  Configure multiple MCP servers if you want to use external tools")
 	config.MCPServers = []MCPServerConfig{}
+	// Firstly Show Higress's existing mcp servers
+	existServers, names, err := getHigressMCPServers()
+	if err == nil && len(existServers) != 0 {
+		yellow.Println("🔗 Get existing MCP Servers from Higress: ")
+		chosedNames := []string{}
+		hgServerPrompt := survey.MultiSelect{
+			Message: fmt.Sprintf("Choose MCP Server from Current Higress(%s)", viper.GetString(HIGRESS_CONSOLE_URL)),
+			Options: names,
+		}
+		if err := survey.AskOne(&hgServerPrompt, &chosedNames); err != nil {
+			return nil, err
+		}
+
+		for _, name := range chosedNames {
+			config.MCPServers = append(config.MCPServers, MCPServerConfig{
+				Name:      name,
+				URL:       existServers[name],
+				Transport: "streamable_http",
+			})
+		}
+	}
+
+	fmt.Println()
+	purple.Println("Add MCP Servers mannually...")
 
 	for {
 		var mcpserver MCPServerConfig
@@ -917,6 +945,37 @@ func writeAgentPromptFile(dir, name, prompt string) error {
 		return fmt.Errorf("failed to write prompt file %s: %w", filePath, err)
 	}
 	return nil
+}
+
+func getHigressMCPServers() (map[string]string, []string, error) {
+	conURL := viper.GetString(HIGRESS_CONSOLE_URL)
+	conUser := viper.GetString(HIGRESS_CONSOLE_USER)
+	conPwd := viper.GetString(HIGRESS_CONSOLE_PASSWORD)
+	gwURL := viper.GetString(HIGRESS_GATEWAY_URL)
+
+	if conURL == "" || conUser == "" || conPwd == "" || gwURL == "" {
+		return nil, nil, fmt.Errorf("empty env, can not get Higress's MCP Servers")
+	}
+
+	client := services.NewHigressClient(
+		conURL,
+		conUser,
+		conPwd,
+	)
+	resultMap, err := services.GetExistingMCPServers(client)
+	if err != nil {
+		return nil, nil, err
+	}
+	for k := range resultMap {
+		resultMap[k] = fmt.Sprintf("%s/mcp-servers/%s", gwURL, k)
+	}
+
+	keys := make([]string, 0, len(resultMap))
+	for k := range resultMap {
+		keys = append(keys, k)
+	}
+
+	return resultMap, keys, nil
 }
 
 // Print agent config summary to user
