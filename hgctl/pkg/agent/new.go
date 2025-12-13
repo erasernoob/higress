@@ -14,6 +14,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	ASRuntimeMainPyFile = "as_runtime_main.py"
+	AgentRunMainPyFile  = "agentrun_main.py"
+	ToolKitPyFile       = "toolkit.py"
+
+	AgentRunTemplate  = "agentrun_main.tmpl"
+	ASRuntimeTemplate = "as_runtime_main.tmpl"
+	ToolKitTemplate   = "as_toolkit.tmpl"
+)
+
 var ASAvailiableTools = []string{
 	"execute_python_code",
 	"execute_shell_command",
@@ -262,7 +272,7 @@ func (h *AgentHandler) checkRequiredDeps() error {
 			return err
 		}
 
-		// TODO: polish the logic
+		// TODO: refactor the logic
 		path := os.Getenv("PATH")
 		newPath := venvDir + "/bin:" + path
 		err = os.Setenv("PATH", newPath)
