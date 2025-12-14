@@ -39,6 +39,7 @@ const (
 	// AgentReleasePage = "https://docs.claude.com/en/docs/claude-code/setup"
 
 	HGCTL_AGENT_CORE         = "hgctl-agent-core"
+	AGENT_CHAT_MODEL         = "agent-chat-model"
 	HIGRESS_CONSOLE_URL      = "higress-console-url"
 	HIGRESS_CONSOLE_USER     = "higress-console-user"
 	HIGRESS_CONSOLE_PASSWORD = "higress-console-password"
@@ -46,6 +47,16 @@ const (
 	HIMARKET_ADMIN_URL       = "himarket-admin-url"
 	HIMARKET_ADMIN_USER      = "himarket-admin-user"
 	HIMARKET_ADMIN_PASSWORD  = "himarket-admin-password"
+
+	// --- AgentRun ---
+	AGENTRUN_MODEL_NAME             = "agentrun-model-name"
+	AGENTRUN_SANDBOX_NAME           = "agentrun-sandbox-name"
+	ALIBABA_CLOUD_ACCESS_KEY_ID     = "alibaba-cloud-access-key-id"
+	ALIBABA_CLOUD_ACCESS_KEY_SECRET = "alibaba-cloud-access-key-secret"
+	ALIBABA_CLOUD_SECURITY_TOK      = "alibaba-cloud-security-tok"
+	AGENTRUN_ACCOUNT_ID             = "agentrun-account-id"
+	AGENTRUN_REGION                 = "agentrun-region"
+	AGENTRUN_SDK_DEB                = "agentrun-sdk-deb"
 )
 
 var GlobalConfig HgctlAgentConfig
@@ -63,7 +74,14 @@ type HgctlAgentConfig struct {
 	HimarketAdminUser     string `mapstructure:"himarket-admin-user"`
 	HimarketAdminPassword string `mapstructure:"himarket-admin-password"`
 
-	// Note: AGENT_CORE is a constant, not typically a struct field unless it holds a value like a version or name.
+	// --- AgentRun Configuration ---
+	AgentRunModelName           string `mapstructure:"agentrun-model-name"`
+	AgentRunSandboxName         string `mapstructure:"agentrun-sandbox-name"`
+	AlibabaCloudAccessKeyID     string `mapstructure:"alibaba-cloud-access-key-id"`
+	AlibabaCloudAccessKeySecret string `mapstructure:"alibaba-cloud-access-key-secret"`
+	AlibabaCloudSecurityTok     string `mapstructure:"alibaba-cloud-security-tok"`
+	AgentRunAccountID           string `mapstructure:"agentrun-account-id"`
+	AgentRunRegion              string `mapstructure:"agentrun-region"`
 }
 
 func InitConfig() {

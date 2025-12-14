@@ -33,13 +33,14 @@ const (
 func NewAgentCmd() *cobra.Command {
 	agentCmd := &cobra.Command{
 		Use:   "agent",
-		Short: "start the interactive agent window",
+		Short: "Start the interactive agent window",
 		Run: func(cmd *cobra.Command, args []string) {
 			cmdutil.CheckErr(handleAgentInvoke(cmd.OutOrStdout()))
 		},
 	}
 
 	agentCmd.AddCommand(createAgentCmd())
+	agentCmd.AddCommand(deployAgentCmd())
 	agentCmd.AddCommand(newAgentAddCmd())
 
 	return agentCmd

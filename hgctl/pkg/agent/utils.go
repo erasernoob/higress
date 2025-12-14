@@ -52,6 +52,13 @@ const (
 	SecretConsolePwd  = "adminPassword"
 )
 
+var (
+	purple = color.New(color.FgMagenta, color.Bold)
+	cyan   = color.New(color.FgCyan)
+	yellow = color.New(color.FgYellow)
+	green  = color.New(color.FgGreen)
+)
+
 var binaryName string
 
 // ------ cmd related  ------
@@ -527,7 +534,7 @@ func getAllProfiles() ([]*installer.ProfileContext, error) {
 	return profileContexts, nil
 }
 
-func getAgentConfig() (*AgentConfig, error) {
+func getAgentConfig(config *AgentConfig) error {
 	options := []string{
 		"create step by step",
 		"import existing one from current agentcore",
@@ -541,27 +548,26 @@ func getAgentConfig() (*AgentConfig, error) {
 
 	if err := survey.AskOne(prompt, &response); err != nil {
 		fmt.Println(err)
-		return nil, err
+		return err
 	}
 
 	switch response {
 	case options[0]:
-		return createAgentStepByStep()
+		return createAgentStepByStep(config)
 	case options[1]:
-		return importAgentFromCore()
+		return importAgentFromCore(config)
 	}
-	return nil, fmt.Errorf("Unsupport way to create a agent")
+	return fmt.Errorf("Unsupport way to create a agent")
 }
 
-func importAgentFromCore() (*AgentConfig, error) {
-	config := &AgentConfig{}
+func getAgentCoreSubAgents() (map[string]string, []string, error) {
 	home, _ := os.UserHomeDir()
 	core := viper.GetString(HGCTL_AGENT_CORE)
 	coreAgentsDir := filepath.Join(home, fmt.Sprintf(".%s", core), "agents")
 
 	files, err := os.ReadDir(coreAgentsDir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read core agents directory (%s): %w", coreAgentsDir, err)
+		return nil, nil, fmt.Errorf("failed to read core agents directory (%s): %w", coreAgentsDir, err)
 	}
 
 	var agentNames []string
@@ -589,9 +595,17 @@ func importAgentFromCore() (*AgentConfig, error) {
 		agentNames = append(agentNames, agentName)
 		agentContentMap[agentName] = string(contentBytes)
 	}
+	return agentContentMap, agentNames, nil
+}
+
+func importAgentFromCore(config *AgentConfig) error {
+	agentContentMap, agentNames, err := getAgentCoreSubAgents()
+	if err != nil {
+		return err
+	}
 
 	if len(agentNames) == 0 {
-		return nil, fmt.Errorf("no agent files (*.md) found in the core directory: %s", coreAgentsDir)
+		return fmt.Errorf("no agent files (*.md) found in the core's subagent directory: %s")
 	}
 
 	var selectedAgentName string
@@ -601,16 +615,16 @@ func importAgentFromCore() (*AgentConfig, error) {
 	}
 
 	err = survey.AskOne(prompt, &selectedAgentName, survey.WithIcons(func(icons *survey.IconSet) {
-		icons.SelectFocus.Text = "»" // A nicer icon for selection
+		icons.SelectFocus.Text = "»"
 	}))
 
 	if err != nil {
-		return nil, fmt.Errorf("agent selection failed or was interrupted: %w", err)
+		return fmt.Errorf("agent selection failed or was interrupted: %w", err)
 	}
 
 	promptContent, ok := agentContentMap[selectedAgentName]
 	if !ok {
-		return nil, fmt.Errorf("internal error: could not find prompt for selected agent: %s", selectedAgentName)
+		return fmt.Errorf("internal error: could not find prompt for selected agent: %s", selectedAgentName)
 	}
 
 	// Set the selected agent name in the config
@@ -619,63 +633,19 @@ func importAgentFromCore() (*AgentConfig, error) {
 	config.SysPromptPath = filepath.Join(util.GetHomeHgctlDir(), "agents", selectedAgentName)
 	if err := writeAgentPromptFile(config.SysPromptPath, selectedAgentName, promptContent); err != nil {
 		fmt.Println("❌ failed to write prompt to target file: ", config.SysPromptPath)
-		return nil, err
+		return err
 	}
 
-	// TODO:
-	purple := color.New(color.FgMagenta, color.Bold)
-	fmt.Println()
-	purple.Println("🤖 AI Model")
-	fmt.Println("  Choose the AI model that powers this agent")
-	promptModelName := &survey.Input{
-		Message: "Which AI model to use?",
-		Default: "qwen-flash",
-	}
-	if err := survey.AskOne(promptModelName, &config.ChatModel); err != nil {
-		return nil, err
+	if err := queryAgentModel(config); err != nil {
+		return fmt.Errorf("failed to get agent's model: %s", err)
 	}
 
-	// can also covered by environment
-	if env_model := os.Getenv("AGENT_CHAT_MODEL"); env_model != "" {
-		config.ChatModel = env_model
+	if err := queryAgentMCP(config); err != nil {
+		return fmt.Errorf("failed to get agent's mcp servers: %s", err)
 	}
 
-	fmt.Println()
-	purple.Println("🔑 API Key Configuration")
-	fmt.Println("  Environment variable name for the API key")
-	promptAPIKey := &survey.Input{
-		Message: "Environment variable name for API key:",
-		Default: "DASHSCOPE_API_KEY",
-	}
-	if err := survey.AskOne(promptAPIKey, &config.APIKeyEnvVar); err != nil {
-		return nil, err
-	}
-
-	fmt.Println()
-	purple.Println("🌐 Deployment Settings")
-	fmt.Println("  Network configuration for the agent")
-	promptPort := &survey.Input{
-		Message: "Deployment port:",
-		Default: "8090",
-	}
-	var portStr string
-
-	if err := survey.AskOne(promptPort, &portStr); err != nil {
-		return nil, err
-	}
-
-	if portNum, err := strconv.Atoi(portStr); err == nil {
-		config.DeploymentPort = portNum
-	} else {
-		config.DeploymentPort = 8090 // 默认值
-	}
-
-	promptHost := &survey.Input{
-		Message: "Host binding:",
-		Default: "0.0.0.0",
-	}
-	if err := survey.AskOne(promptHost, &config.HostBinding); err != nil {
-		return nil, err
+	if err := queryDeploySettings(config); err != nil {
+		return fmt.Errorf("failed to get agent's mcp servers: %s", err)
 	}
 
 	fmt.Println("  How the agent responds to user input")
@@ -684,7 +654,7 @@ func importAgentFromCore() (*AgentConfig, error) {
 		Default: true,
 	}
 	if err := survey.AskOne(promptStreaming, &config.EnableStreaming); err != nil {
-		return nil, err
+		return err
 	}
 
 	promptThinking := &survey.Confirm{
@@ -692,35 +662,12 @@ func importAgentFromCore() (*AgentConfig, error) {
 		Default: true,
 	}
 	if err := survey.AskOne(promptThinking, &config.EnableThinking); err != nil {
-		return nil, err
+		return err
 	}
-
-	return config, nil
-
+	return nil
 }
 
-func createAgentStepByStep() (*AgentConfig, error) {
-	purple := color.New(color.FgMagenta, color.Bold)
-	cyan := color.New(color.FgCyan)
-	yellow := color.New(color.FgYellow)
-	green := color.New(color.FgGreen)
-	config := &AgentConfig{}
-
-	name := ""
-	namePrompt := &survey.Input{
-		Message: "What is the agent's name?",
-		Default: "",
-	}
-	if err := survey.AskOne(namePrompt, &name); err != nil {
-		return nil, err
-	}
-
-	config.AgentName = name
-	config.AppName = name
-
-	cyan.Printf("🤖 Let's configure your agent '%s'\n", name)
-	fmt.Println()
-
+func queryAgentSysPrompt(config *AgentConfig) error {
 	purple.Println("📝 System Prompt")
 	fmt.Println("  This defines the agent's personality and behavior")
 
@@ -737,27 +684,23 @@ func createAgentStepByStep() (*AgentConfig, error) {
 	}
 	if err := survey.AskOne(prompt, &response); err != nil {
 		fmt.Println(err)
-		return nil, err
+		return err
 	}
 
+	var finalPromptStr string
 	switch response {
 	case options[0]:
 		var prompt string
-		sysPromptDefault := fmt.Sprintf("You're a helpful assistant named %s.", name)
+		sysPromptDefault := fmt.Sprintf("You're a helpful assistant named %s.", config.AgentName)
 		promptSysPrompt := &survey.Input{
 			Message: "What is the system prompt for this agent?",
 			Default: sysPromptDefault,
 		}
 		if err := survey.AskOne(promptSysPrompt, &prompt); err != nil {
-			return nil, err
+			return err
 		}
 
-		// create the prompt file and save it to ~/.hgctl/agents/<name>
-		config.SysPromptPath = filepath.Join(util.GetHomeHgctlDir(), "agents", config.AgentName)
-		if err := writeAgentPromptFile(config.SysPromptPath, name, prompt); err != nil {
-			fmt.Println("failed to write prompt to target file: ", config.SysPromptPath)
-			return nil, err
-		}
+		finalPromptStr = prompt
 
 	case options[1]:
 		var target string
@@ -765,21 +708,16 @@ func createAgentStepByStep() (*AgentConfig, error) {
 			Message: "Enter the target prompt file path:",
 		}
 		if err := survey.AskOne(promptSysPrompt, &target); err != nil {
-			return nil, err
+			return err
 		}
 		content, err := os.ReadFile(target)
 
 		if err != nil {
 			fmt.Printf("❌ Failed to read the target file (%s): %v\n", target, err)
-			return nil, fmt.Errorf("failed to read source file: %w", err)
+			return fmt.Errorf("failed to read source file: %w", err)
 		}
-		prompt := string(content)
 
-		config.SysPromptPath = filepath.Join(util.GetHomeHgctlDir(), "agents", config.AgentName)
-		if err := writeAgentPromptFile(config.SysPromptPath, name, prompt); err != nil {
-			fmt.Println("failed to write prompt to target file: ", config.SysPromptPath)
-			return nil, err
-		}
+		finalPromptStr = string(content)
 
 	case options[2]:
 		var desc string
@@ -788,7 +726,7 @@ func createAgentStepByStep() (*AgentConfig, error) {
 			Default: "Help me write unit tests for my code...",
 		}
 		if err := survey.AskOne(descPrompt, &desc); err != nil {
-			return nil, err
+			return err
 		}
 
 		fmt.Println("generating...(this may take a few minutes, depends on your model)")
@@ -798,27 +736,21 @@ func createAgentStepByStep() (*AgentConfig, error) {
 
 		if err != nil {
 			fmt.Printf("failed to generate prompt use agent core: %s\n", err)
-			return nil, err
+			return err
 		}
 
-		config.SysPromptPath = filepath.Join(util.GetHomeHgctlDir(), "agents", config.AgentName)
-		if err := writeAgentPromptFile(config.SysPromptPath, name, prompt); err != nil {
-			fmt.Println("failed to write prompt to target file: ", config.SysPromptPath)
-			return nil, err
-		}
+		finalPromptStr = prompt
 	}
 
-	fmt.Println()
-	purple.Println("📋 App Description")
-	fmt.Println("  A brief description of what this agent does")
-	promptAppDescription := &survey.Input{
-		Message: "What is the app description?",
-		Default: "A helpful assistant and useful agent",
+	config.SysPromptPath = filepath.Join(util.GetHomeHgctlDir(), "agents", config.AgentName)
+	if err := writeAgentPromptFile(config.SysPromptPath, config.AgentName, finalPromptStr); err != nil {
+		fmt.Println("failed to write prompt to target file: ", config.SysPromptPath)
+		return err
 	}
-	if err := survey.AskOne(promptAppDescription, &config.AppDescription); err != nil {
-		return nil, err
-	}
+	return nil
+}
 
+func queryAgentTools(config *AgentConfig) error {
 	fmt.Println()
 	purple.Println("🔧 Available Tools")
 	fmt.Println("  Select the tools this agent can use")
@@ -832,7 +764,46 @@ func createAgentStepByStep() (*AgentConfig, error) {
 		Options: ASAvailiableTools,
 	}
 	if err := survey.AskOne(promptTools, &config.AvailableTools); err != nil {
-		return nil, err
+		return err
+
+	}
+	return nil
+}
+
+func queryAgentModel(config *AgentConfig) error {
+	switch config.Type {
+	case AgentRun:
+		return queryAgentRunModel(config)
+	case Local:
+		return queryLocalModel(config)
+	default:
+		return fmt.Errorf("unsupported deploy type")
+	}
+}
+
+func queryAgentRunModel(config *AgentConfig) error {
+	config.ChatModel = viper.GetString(AGENTRUN_MODEL_NAME)
+	fmt.Println()
+	purple.Println("🤖 AI Model")
+	fmt.Println("  Enter the model name that you've already created on your agentRun dashboard")
+	message := "Which model to use?"
+	if config.ChatModel != "" {
+		message = fmt.Sprintf("Detected from configuration: %s. (Enter to continue)", config.ChatModel)
+	}
+	promptModelName := &survey.Input{
+		Message: message,
+		Default: config.ChatModel,
+	}
+	if err := survey.AskOne(promptModelName, &config.ChatModel); err != nil {
+		return err
+	}
+	return nil
+}
+
+func queryLocalModel(config *AgentConfig) error {
+	defaultModel := "qwen-plus"
+	if env_model := viper.GetString(AGENT_CHAT_MODEL); env_model != "" {
+		defaultModel = env_model
 	}
 
 	fmt.Println()
@@ -840,72 +811,27 @@ func createAgentStepByStep() (*AgentConfig, error) {
 	fmt.Println("  Choose the AI model that powers this agent")
 	promptModelName := &survey.Input{
 		Message: "Which AI model to use?",
-		Default: "qwen-flash",
+		Default: defaultModel,
 	}
 	if err := survey.AskOne(promptModelName, &config.ChatModel); err != nil {
-		return nil, err
-	}
-
-	// can also covered by environment
-	if env_model := os.Getenv("AGENT_CHAT_MODEL"); env_model != "" {
-		config.ChatModel = env_model
+		return err
 	}
 
 	fmt.Println()
 	purple.Println("🔑 API Key Configuration")
-	fmt.Println("  Environment variable name for the API key")
+	fmt.Println("  Environment variable name for models API key")
 	promptAPIKey := &survey.Input{
 		Message: "Environment variable name for API key:",
 		Default: "DASHSCOPE_API_KEY",
 	}
 	if err := survey.AskOne(promptAPIKey, &config.APIKeyEnvVar); err != nil {
-		return nil, err
+		return err
 	}
 
-	fmt.Println()
-	purple.Println("🌐 Deployment Settings")
-	fmt.Println("  Network configuration for the agent")
-	promptPort := &survey.Input{
-		Message: "Deployment port:",
-		Default: "8090",
-	}
-	var portStr string
+	return nil
+}
 
-	if err := survey.AskOne(promptPort, &portStr); err != nil {
-		return nil, err
-	}
-
-	if portNum, err := strconv.Atoi(portStr); err == nil {
-		config.DeploymentPort = portNum
-	} else {
-		config.DeploymentPort = 8090 // 默认值
-	}
-
-	promptHost := &survey.Input{
-		Message: "Host binding:",
-		Default: "0.0.0.0",
-	}
-	if err := survey.AskOne(promptHost, &config.HostBinding); err != nil {
-		return nil, err
-	}
-
-	fmt.Println("  How the agent responds to user input")
-	promptStreaming := &survey.Confirm{
-		Message: "Enable streaming responses?",
-		Default: true,
-	}
-	if err := survey.AskOne(promptStreaming, &config.EnableStreaming); err != nil {
-		return nil, err
-	}
-
-	promptThinking := &survey.Confirm{
-		Message: "Enable thinking mode?",
-		Default: true,
-	}
-	if err := survey.AskOne(promptThinking, &config.EnableThinking); err != nil {
-		return nil, err
-	}
-
+func queryAgentMCP(config *AgentConfig) error {
 	fmt.Println()
 	purple.Println("🔗 MCP Server Configuration")
 	cyan.Println("  Configure multiple MCP servers if you want to use external tools")
@@ -920,7 +846,7 @@ func createAgentStepByStep() (*AgentConfig, error) {
 			Options: names,
 		}
 		if err := survey.AskOne(&hgServerPrompt, &chosedNames); err != nil {
-			return nil, err
+			return err
 		}
 
 		for _, name := range chosedNames {
@@ -962,7 +888,7 @@ func createAgentStepByStep() (*AgentConfig, error) {
 			Default: mcpNameDefault,
 		}
 		if err := survey.AskOne(promptMCPName, &mcpserver.Name); err != nil {
-			return nil, err
+			return err
 		}
 
 		yellow.Printf("📋 HTTP Headers for '%s' (optional)\n", mcpserver.Name)
@@ -987,7 +913,7 @@ func createAgentStepByStep() (*AgentConfig, error) {
 				Default: "",
 			}
 			if err := survey.AskOne(promptValue, &headerValue); err != nil {
-				return nil, err
+				return err
 			}
 
 			if headerValue != "" {
@@ -1001,9 +927,194 @@ func createAgentStepByStep() (*AgentConfig, error) {
 		fmt.Println()
 	}
 
+	return nil
+}
+
+func queryDeploySettings(config *AgentConfig) error {
+	switch config.Type {
+	case AgentRun:
+		return queryAgentRunDeploySettings(config)
+	case Local:
+		return queryLocalDeploySettings(config)
+	default:
+		return fmt.Errorf("unsupported deploy type")
+	}
+}
+
+func queryAgentRunDeploySettings(config *AgentConfig) error {
+	fmt.Println()
+	purple.Println("☁️  AgentRun Deployment Settings")
+	fmt.Println("   Configure the settings for deploying to AgentRun/FC")
+
+	promptResourceName := &survey.Input{
+		Message: "Resource Name:",
+		Default: "my-agent-resource",
+		Help:    "A unique name for the deployed resource.",
+	}
+	if err := survey.AskOne(promptResourceName, &config.ServerlessCfg.ResourceName); err != nil {
+		return err
+	}
+
+	promptRegion := &survey.Select{
+		Message: "Region:",
+		Options: []string{"cn-hangzhou", "cn-shanghai", "cn-beijing", "ap-southeast-1"},
+		Default: "cn-hangzhou",
+		Help:    "The region where the agent will be deployed.",
+	}
+	if err := survey.AskOne(promptRegion, &config.ServerlessCfg.Region); err != nil {
+		return err
+	}
+
+	promptAgentDesc := &survey.Input{
+		Message: "Agent Description:",
+		Default: "My Agent Runtime created by dev",
+		Help:    "A brief description of the agent.",
+	}
+	if err := survey.AskOne(promptAgentDesc, &config.ServerlessCfg.AgentDesc); err != nil {
+		return err
+	}
+
+	promptPort := &survey.Input{
+		Message: "Service Port:",
+		Default: "9000",
+		Help:    "The port the agent service listens on inside the container/runtime.",
+	}
+	var portStr string
+	if err := survey.AskOne(promptPort, &portStr); err != nil {
+		return err
+	}
+
+	if portNum, err := strconv.ParseUint(portStr, 10, 32); err == nil {
+		config.ServerlessCfg.Port = uint(portNum)
+	}
+
+	promptDiskSize := &survey.Input{
+		Message: "Disk Size (MB) (Optional, default 500 MB):",
+		Default: "512",
+		Help:    "Disk size allocated to the agent runtime (MB).",
+	}
+	var diskSizeStr string
+	if err := survey.AskOne(promptDiskSize, &diskSizeStr); err != nil {
+		return err
+	}
+	if diskSizeNum, err := strconv.ParseUint(diskSizeStr, 10, 32); err == nil {
+		config.ServerlessCfg.DiskSize = uint(diskSizeNum)
+	}
+
+	promptTimeout := &survey.Input{
+		Message: "Timeout (seconds) (Optional, default 600s):",
+		Default: "600",
+		Help:    "The maximum request processing time (seconds).",
+	}
+	var timeoutStr string
+	if err := survey.AskOne(promptTimeout, &timeoutStr); err != nil {
+		return err
+	}
+	if timeoutNum, err := strconv.ParseUint(timeoutStr, 10, 32); err == nil {
+		config.ServerlessCfg.Timeout = uint(timeoutNum)
+	}
+
+	config.ServerlessCfg.AgentName = config.AgentName
+
+	return nil
+}
+
+func queryLocalDeploySettings(config *AgentConfig) error {
+	fmt.Println()
+	purple.Println("🌐 Deployment Settings")
+	fmt.Println("  Network configuration for the agent")
+	promptPort := &survey.Input{
+		Message: "Deployment port:",
+		Default: "8090",
+	}
+	var portStr string
+
+	if err := survey.AskOne(promptPort, &portStr); err != nil {
+		return err
+	}
+
+	if portNum, err := strconv.Atoi(portStr); err == nil {
+		config.DeploymentPort = portNum
+	} else {
+		config.DeploymentPort = 8090 // 默认值
+	}
+
+	promptHost := &survey.Input{
+		Message: "Host binding:",
+		Default: "0.0.0.0",
+	}
+	if err := survey.AskOne(promptHost, &config.HostBinding); err != nil {
+		return err
+	}
+	return nil
+}
+
+func createAgentStepByStep(config *AgentConfig) error {
+	name := ""
+	namePrompt := &survey.Input{
+		Message: "What is the agent's name?",
+		Default: "",
+	}
+	if err := survey.AskOne(namePrompt, &name); err != nil {
+		return err
+	}
+
+	config.AgentName = name
+	config.AppName = name
+
+	cyan.Printf("🤖 Let's configure your agent '%s'\n", name)
+
+	fmt.Println()
+	purple.Println("📋 App Description")
+	fmt.Println("  A brief description of what this agent does")
+	promptAppDescription := &survey.Input{
+		Message: "What is the app description?",
+		Default: "A helpful assistant and useful agent",
+	}
+	if err := survey.AskOne(promptAppDescription, &config.AppDescription); err != nil {
+		return err
+	}
+
+	if err := queryAgentSysPrompt(config); err != nil {
+		return fmt.Errorf("failed to get agent's sysPrompt: %s", err)
+	}
+
+	if err := queryAgentModel(config); err != nil {
+		return fmt.Errorf("failed to get agent's model: %s", err)
+	}
+
+	if err := queryAgentTools(config); err != nil {
+		return fmt.Errorf("failed to get agent's tools: %s", err)
+	}
+
+	if err := queryAgentMCP(config); err != nil {
+		return fmt.Errorf("failed to get agent's mcp servers: %s", err)
+	}
+
+	if err := queryDeploySettings(config); err != nil {
+		return fmt.Errorf("failed to get agent's mcp servers: %s", err)
+	}
+
+	fmt.Println("  How the agent responds to user input")
+	promptStreaming := &survey.Confirm{
+		Message: "Enable streaming responses?",
+		Default: true,
+	}
+	if err := survey.AskOne(promptStreaming, &config.EnableStreaming); err != nil {
+		return err
+	}
+
+	promptThinking := &survey.Confirm{
+		Message: "Enable thinking mode?",
+		Default: true,
+	}
+	if err := survey.AskOne(promptThinking, &config.EnableThinking); err != nil {
+		return err
+	}
+
 	showConfigSummary(config)
 
-	return config, nil
+	return nil
 }
 
 // Write given prompt to ~/.hgctl/agents/<name>/<prompt.md>

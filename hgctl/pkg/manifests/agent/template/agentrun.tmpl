@@ -1,24 +1,29 @@
+import asyncio
 from typing import Any
-
-from langchain.agents import create_agent
-import pydash
+import os
+import sys
 
 from agentscope.agent import ReActAgent
 from agentscope.memory import InMemoryMemory
 from agentscope.message import Msg
 from agentscope.pipeline._functional import stream_printing_messages
+from agentscope.agent import ReActAgent
+from agentscope.model import DashScopeChatModel
+from agentscope.formatter import DashScopeChatFormatter
 
 from agentrun.integration.agentscope import model, sandbox_toolset, toolset
-from agentscope.formatter import DashScopeChatFormatter
 from agentrun.sandbox import TemplateType
 from agentrun.server import AgentRequest, AgentRunServer
 from agentrun.utils.log import logger
 
-# 请替换为您已经创建的 模型 和 沙箱 名称
-MODEL_NAME = "model-65v6-V"
-SANDBOX_NAME = "sandbox-yCRF5D"
+from toolkit import toolkit, init_toolkit_sync
 
-if MODEL_NAME.startswith("<"):
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "python"))
+
+MODEL_NAME = "{{ .ChatModel }}"
+SANDBOX_NAME = os.getenv("AGENTRUN_SANDBOX_NAME")
+
+if not MODEL_NAME:
     raise ValueError("请将 MODEL_NAME 替换为您已经创建的模型名称")
 
 code_interpreter_tools = []
@@ -31,16 +36,18 @@ if SANDBOX_NAME and not SANDBOX_NAME.startswith("<"):
 else:
     logger.warning("SANDBOX_NAME 未设置或未替换，跳过加载沙箱工具。")
 
+def load_sys_prompt(prompt_file_name="prompt.md"):
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    prompt_path = os.path.join(script_dir, prompt_file_name)
+    
+    with open(prompt_path, 'r', encoding='utf-8') as f:
+        return f.read()
+
 agent = ReActAgent(
-    name="test",
-    model=model(MODEL_NAME),
-    sys_prompt="You are a agent createdby agentscope",
-    # toolkit=toolkit,
-    # memory=AgentScopeSessionHistoryMemory(
-    #     service=self.session_service,
-    #     session_id=session_id,
-    #     user_id=user_id,
-    # ),
+    name="{{ .AgentName }}",
+    model=model(MODEL_NAME),  # type: ignore
+    sys_prompt=load_sys_prompt(),
+    toolkit=toolkit,
     memory=InMemoryMemory(),
     formatter=DashScopeChatFormatter(),
 )
@@ -50,7 +57,7 @@ async def invoke_agent(request: AgentRequest):
     try:
         content = request.messages[0].content
         input_msg = Msg(
-            name="msg",
+            name="user_message",
             content=content,  # type: ignore
             role="user",
         )
@@ -68,7 +75,15 @@ async def invoke_agent(request: AgentRequest):
         raise
 
 
-AgentRunServer(invoke_agent=invoke_agent).start()
+def main():
+    init_toolkit_sync()
+
+    AgentRunServer(invoke_agent=invoke_agent).start()
+
+
+if __name__ == "__main__":
+    main()
+
 """
 curl 127.0.0.1:9000/openai/v1/chat/completions -XPOST \
     -H "content-type: application/json" \

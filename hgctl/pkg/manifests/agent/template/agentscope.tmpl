@@ -163,10 +163,11 @@ async def main():
     print(f"📍 部署 ID：{deployment_info['deploy_id']}")
     print(
         f"""
-Check health: curl {deployment_info['url']}/health
-Shutdown:     curl -X POST {deployment_info['url']}/admin/shutdown 
+Check health: curl {url}/health
+Shutdown:     curl -X POST {url}/admin/shutdown 
 """
     )
+    print(f"🌟 You can deploy it to Higress by using: hgctl agent add {url}")
 
     return deployment_info
 
