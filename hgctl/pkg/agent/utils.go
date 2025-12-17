@@ -605,7 +605,7 @@ func importAgentFromCore(config *AgentConfig) error {
 	}
 
 	if len(agentNames) == 0 {
-		return fmt.Errorf("no agent files (*.md) found in the core's subagent directory: %s")
+		return fmt.Errorf("no agent files (*.md) found in the core's subagent directory")
 	}
 
 	var selectedAgentName string
@@ -958,7 +958,7 @@ func queryAgentRunDeploySettings(config *AgentConfig) error {
 	promptRegion := &survey.Select{
 		Message: "Region:",
 		Options: []string{"cn-hangzhou", "cn-shanghai", "cn-beijing", "ap-southeast-1"},
-		Default: "cn-hangzhou",
+		Default: viper.GetString(AGENTRUN_REGION),
 		Help:    "The region where the agent will be deployed.",
 	}
 	if err := survey.AskOne(promptRegion, &config.ServerlessCfg.Region); err != nil {

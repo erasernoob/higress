@@ -55,13 +55,6 @@ func deployAgentCmd() *cobra.Command {
 }
 
 func (h *DeployHandler) validate() error {
-	path, err := util.GetSpecificAgentDir(h.Name)
-	if err != nil {
-		fmt.Printf("invalid agent: %s", err)
-		return err
-	}
-	h.AgentDir = path
-
 	if err := h.checkRequiredEnvironment(); err != nil {
 		return fmt.Errorf("failed to get required environment: %s", err)
 	}
@@ -260,16 +253,28 @@ func (h *DeployHandler) GetRequiredDeps() ([]string, error) {
 }
 
 // Quick and simple to get type by examine the existence of `requirements.txt` file
-func (h *DeployHandler) getAgentType() {
+func (h *DeployHandler) getAgentType() error {
+	path, err := util.GetSpecificAgentDir(h.Name)
+	if err != nil {
+		fmt.Printf("invalid agent: %s", err)
+		return err
+	}
+	h.AgentDir = path
+
 	filePath := filepath.Join(h.AgentDir, "requirements.txt")
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		h.Type = Local
+		return nil
 	}
 	h.Type = AgentRun
+	return nil
 }
 
 func (h *DeployHandler) Deploy() error {
-	h.getAgentType()
+	if err := h.getAgentType(); err != nil {
+		return err
+	}
+
 	if err := h.validate(); err != nil {
 		return err
 	}
@@ -289,8 +294,10 @@ func (h *DeployHandler) Deploy() error {
 		return fmt.Errorf("unsupported deploy target type: %s", h.Type)
 	}
 
-	fmt.Printf("\n🌟 Agent deploy to agentRun successfully! Refers to https://functionai.console.aliyun.com/cn-hangzhou/agent/runtime to get it")
-	fmt.Printf("You can publish it to Higress and Himarket by using `hgctl agent add %s <endpoints-url> -t model --as-product `\n", h.Name)
+	if h.Type == AgentRun {
+		fmt.Printf("\n🌟 Agent deploy to agentRun successfully! Refers to https://functionai.console.aliyun.com/cn-hangzhou/agent/runtime to get it")
+		fmt.Printf("You can publish it to Higress and Himarket by using `hgctl agent add %s <endpoints-url> -t model --as-product `\n", h.Name)
+	}
 	return nil
 }
 

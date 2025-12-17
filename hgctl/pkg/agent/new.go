@@ -62,9 +62,11 @@ type ServerlessConfig struct {
 	AgentName    string
 	AgentDesc    string
 	Port         uint
-	// environmentVariables map[string]string
+
 	DiskSize uint
 	Timeout  uint
+
+	GlobalConfig HgctlAgentConfig
 }
 
 type AgentConfig struct {
@@ -104,6 +106,8 @@ func createAgentCmd() *cobra.Command {
 					Port:      9000,
 					DiskSize:  512,
 					Timeout:   600,
+
+					GlobalConfig: GlobalConfig,
 				}
 			}
 

@@ -54,10 +54,10 @@ resources:
 
         # 环境变量，需要填写以下环境变量使用，推荐使用无明文AK方式，在下方填写授信给FC，包含AliyunAgentRunFullAccess的执行角色
         environmentVariables:
-          # AGENTRUN_ACCESS_KEY_ID: ""
-          # AGENTRUN_ACCESS_KEY_SECRET: ""
-          # AGENTRUN_ACCOUNT_ID: ""
-          # AGENTRUN_REGION: "cn-hangzhou"
+          AGENTRUN_ACCESS_KEY_ID: "{{ .GlobalConfig.AlibabaCloudAccessKeyID }}"
+          AGENTRUN_ACCESS_KEY_SECRET: "{{ .GlobalConfig.AlibabaCloudAccessKeySecret }}"
+          AGENTRUN_ACCOUNT_ID: "{{ .GlobalConfig.AgentRunAccountID }}"
+          AGENTRUN_REGION: "{{ .GlobalConfig.AgentRunRegion }}"
 
         # 执行角色，填写此角色，无需填写上方AK、SK敏感凭据的环境变量，角色需要授信给FC，包含AliyunAgentRunFullAccess
         # role: acs:ram::1160216277279558:role/AliyunFCDefaultRole
