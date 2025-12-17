@@ -66,7 +66,7 @@ func (c *AgenticCore) run(args ...string) error {
 // setup additional prequisite environment and plugins manifest to user's profile
 // e.g. ../manifest/agent
 func (c *AgenticCore) Setup() {
-	// Check if this is the first time, otherwise directly return (this is a simple check)
+	// Check if this is the first time, otherwise directly return (TODO: this is a simple check)
 	homeDir, _ := os.UserHomeDir()
 	targetCtlDir := filepath.Join(homeDir, ".hgctl")
 	if _, err := os.Stat(targetCtlDir); err == nil {
@@ -83,7 +83,7 @@ func (c *AgenticCore) Setup() {
 		os.Exit(1)
 	}
 
-	// Setup predefined files like command
+	// Setup predefined files like: command.md
 	if err := manifests.ExtractEmbedFiles(embedFS, "agent", targetCoreDir); err != nil {
 		fmt.Println(err)
 		fmt.Println("failed to init commands for agent core")
@@ -198,7 +198,9 @@ func (c *AgenticCore) AddMCPServer(arg MCPAddArg) error {
 		}
 	}
 	err := c.run(args...)
-	if err == nil || err != nil && strings.Contains(err.Error(), "already exists") {
+
+	// Allow to add duplicate mcp server name (core will return error)
+	if err == nil || strings.Contains(err.Error(), "already exists") {
 		return nil
 	}
 	return err

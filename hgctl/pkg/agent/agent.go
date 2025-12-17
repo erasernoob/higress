@@ -35,7 +35,7 @@ func NewAgentCmd() *cobra.Command {
 		Use:   "agent",
 		Short: "Start the interactive agent window",
 		Run: func(cmd *cobra.Command, args []string) {
-			cmdutil.CheckErr(handleAgentInvoke(cmd.OutOrStdout()))
+			cmdutil.CheckErr(invokeAgentCore(cmd.OutOrStdout()))
 		},
 	}
 
@@ -46,8 +46,12 @@ func NewAgentCmd() *cobra.Command {
 	return agentCmd
 }
 
-func handleAgentInvoke(w io.Writer) error {
-	return getAgent().Start()
+func invokeAgentCore(w io.Writer) error {
+	core, err := getCore()
+	if err != nil {
+		return fmt.Errorf("failed to get core: %s", err)
+	}
+	return core.Start()
 }
 
 type AgentAddArg struct {

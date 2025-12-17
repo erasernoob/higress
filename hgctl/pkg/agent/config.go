@@ -23,11 +23,11 @@ import (
 	"github.com/spf13/viper"
 )
 
-type AgentCore string
+type CoreType string
 
 const (
-	CLAUDE_CODE AgentCore = "claude"
-	QODER_CLI   AgentCore = "qodercli"
+	CORE_CLAUDE   CoreType = "claude"
+	CORE_QODERCLI CoreType = "qodercli"
 )
 
 const (
@@ -62,7 +62,7 @@ const (
 var GlobalConfig HgctlAgentConfig
 
 type HgctlAgentConfig struct {
-	AGENT_CORE AgentCore `mapstructure:"hgctl-agent-core"`
+	AGENT_CORE CoreType `mapstructure:"hgctl-agent-core"`
 
 	// Higress Console credentials
 	HigressConsoleURL      string `mapstructure:"higress-console-url"`
@@ -104,11 +104,11 @@ func InitConfig() {
 	// Unmarshal into the GlobalConfig variable
 	_ = viper.Unmarshal(&GlobalConfig)
 
+	// Validate supported AgentCore currently
 	switch viper.GetString(HGCTL_AGENT_CORE) {
-	case string(CLAUDE_CODE), string(QODER_CLI):
+	case string(CORE_CLAUDE), string(CORE_QODERCLI):
 		return
 	default:
-		viper.SetDefault(HGCTL_AGENT_CORE, string(CLAUDE_CODE))
+		viper.SetDefault(HGCTL_AGENT_CORE, string(CORE_QODERCLI))
 	}
-
 }

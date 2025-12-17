@@ -177,7 +177,10 @@ func (h *MCPAddHandler) parseOpenapiSpec() *models.MCPConfig {
 }
 
 func handleAddMCP(w io.Writer, arg MCPAddArg) error {
-	client := getAgent()
+	client, err := getCore()
+	if err != nil {
+		return fmt.Errorf("failed to get agent core: %s", err)
+	}
 	h := newHanlder(client, arg, w)
 	if err := h.validateArg(); err != nil {
 		return err
