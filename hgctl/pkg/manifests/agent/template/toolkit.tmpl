@@ -24,6 +24,8 @@ toolkit = Toolkit()
 def _register_tools():
     {{range .AvailableTools}}
     toolkit.register_tool_function({{.}})
+    {{else}}
+    pass
     {{end}}
 
 
