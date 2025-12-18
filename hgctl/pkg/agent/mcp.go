@@ -258,11 +258,11 @@ func publishMCPToHigress(arg MCPAddArg, transport string, config *models.MCPConf
 	}}
 
 	body = map[string]interface{}{
-		"name": arg.name,
-		//   "description": "",
-		"type":     mcpType,
-		"service":  targetSrvName,
-		"services": srvField,
+		"name":        arg.name,
+		"description": "A MCP Server added by hgctl",
+		"type":        mcpType,
+		"service":     targetSrvName,
+		"services":    srvField,
 	}
 
 	// Only DIRECT_ROUTE Type get below extra params

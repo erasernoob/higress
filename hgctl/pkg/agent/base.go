@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/alibaba/higress/hgctl/pkg/agent/common"
 	"github.com/alibaba/higress/hgctl/pkg/agent/services"
 	"github.com/fatih/color"
 	"github.com/spf13/viper"
@@ -34,6 +35,13 @@ const (
 )
 
 type HimarketAdminAuthArg struct {
+	hmURL      string
+	hmUser     string
+	hmPassword string
+}
+
+// Developer's page
+type HimarketDevAuthArg struct {
 	hmURL      string
 	hmUser     string
 	hmPassword string
@@ -103,13 +111,13 @@ func resolveHigressConsoleAuth(arg *HigressConsoleAuthArg) {
 func parseTypeToAPIProductType(typ string) string {
 	switch typ {
 	case "a2a":
-		return "AGENT_API"
+		return string(common.AGENT_API)
 	case "restful":
-		return "REST_API"
+		return string(common.REST_API)
 	case "model":
-		return "MODEL_API"
+		return string(common.MODEL_API)
 	case "mcp":
-		return "MCP_SERVER"
+		return string(common.MCP_SERVER)
 	default:
 		return ""
 	}

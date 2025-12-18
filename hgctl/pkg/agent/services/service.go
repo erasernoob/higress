@@ -18,6 +18,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"github.com/alibaba/higress/hgctl/pkg/agent/common"
 )
 
 func HandleAddServiceSource(client *HigressClient, body interface{}) ([]byte, error) {
@@ -179,8 +181,119 @@ func HandleAddRoute(client *HigressClient, body interface{}) ([]byte, error) {
 
 // Himarket-related
 func HandleAddHigressInstance(client *HimarketClient, body interface{}) ([]byte, error) {
-	// This will not return the higress-gatway-id
+	// This api will not return the higress-gatway-id
 	return client.Post("/api/v1/gateways", body)
+}
+
+func (c *HimarketClient) getProduct(typ common.ProductType) ([]byte, error) {
+	return c.Get(fmt.Sprintf("/api/v1/products?type=%s&page=0&size=30", string(typ)))
+}
+
+func (c *HimarketClient) extractGetProductResponse(typ common.ProductType, response map[string]interface{}) map[string]string {
+	result := make(map[string]string)
+
+	data, ok := response["data"].(map[string]interface{})
+	if !ok {
+		return result
+	}
+
+	content, ok := data["content"].([]interface{})
+	if !ok {
+		return result
+	}
+
+	for _, item := range content {
+		product, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		productType, _ := product["type"].(string)
+		if productType != string(typ) {
+			continue
+		}
+
+		name, _ := product["name"].(string)
+		if name == "" {
+			continue
+		}
+
+		mcpConfig, ok := product["mcpConfig"].(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		serverConfig, ok := mcpConfig["mcpServerConfig"].(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		domains, ok := serverConfig["domains"].([]interface{})
+		if !ok || len(domains) == 0 {
+			continue
+		}
+
+		path, ok := serverConfig["path"].(string)
+		if !ok {
+			continue
+		}
+
+		for _, domainItem := range domains {
+			domainConfig, ok := domainItem.(map[string]interface{})
+			if !ok {
+				continue
+			}
+
+			domain, _ := domainConfig["domain"].(string)
+			protocol, _ := domainConfig["protocol"].(string)
+			if domain == "" || protocol == "" {
+				continue
+			}
+
+			port, _ := domainConfig["port"].(float64)
+			url := ""
+			if port == 0 || port == 80 {
+				url = fmt.Sprintf("%s://%s%s", protocol, domain, path)
+			} else {
+				url = fmt.Sprintf("%s://%s:%d%s", protocol, domain, int(port), path)
+			}
+
+			result[name] = url
+			break
+		}
+	}
+
+	return result
+}
+
+func (c *HimarketClient) GetDevModelProduct() (map[string]string, error) {
+	data, err := c.getProduct(common.MODEL_API)
+	if err != nil {
+		return nil, fmt.Errorf("failed request himarket: %s", err)
+	}
+	var response map[string]interface{}
+	if err := json.Unmarshal(data, &response); err != nil {
+		return nil, fmt.Errorf("failed to get model api from response %s", err)
+	}
+
+	return c.extractGetProductResponse(common.MODEL_API, response), nil
+}
+
+func (c *HimarketClient) GetDevMCPServerProduct() (map[string]string, error) {
+	data, err := c.getProduct(common.MCP_SERVER)
+	if err != nil {
+		return nil, fmt.Errorf("failed request himarket: %s", err)
+	}
+	var response map[string]interface{}
+	if err := json.Unmarshal(data, &response); err != nil {
+		return nil, fmt.Errorf("failed to get MCP server from response %s", err)
+	}
+
+	return c.extractGetProductResponse(common.MCP_SERVER, response), nil
+}
+
+func HandleListHimarketMCPServers(client *HimarketClient) ([]byte, error) {
+	return nil, nil
 }
 
 func HandleAddAPIProduct(client *HimarketClient, body interface{}) ([]byte, error) {

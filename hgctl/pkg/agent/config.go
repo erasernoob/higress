@@ -44,9 +44,14 @@ const (
 	HIGRESS_CONSOLE_USER     = "higress-console-user"
 	HIGRESS_CONSOLE_PASSWORD = "higress-console-password"
 	HIGRESS_GATEWAY_URL      = "higress-gateway-url"
-	HIMARKET_ADMIN_URL       = "himarket-admin-url"
-	HIMARKET_ADMIN_USER      = "himarket-admin-user"
-	HIMARKET_ADMIN_PASSWORD  = "himarket-admin-password"
+
+	HIMARKET_ADMIN_URL      = "himarket-admin-url"
+	HIMARKET_ADMIN_USER     = "himarket-admin-user"
+	HIMARKET_ADMIN_PASSWORD = "himarket-admin-password"
+
+	HIMARKET_DEVELOPER_URL      = "himarket-developer-url"
+	HIMARKET_DEVELOPER_USER     = "himarket-developer-user"
+	HIMARKET_DEVELOPER_PASSWORD = "himarket-developer-password"
 
 	// --- AgentRun ---
 	AGENTRUN_MODEL_NAME             = "agentrun-model-name"
@@ -74,7 +79,12 @@ type HgctlAgentConfig struct {
 	HimarketAdminUser     string `mapstructure:"himarket-admin-user"`
 	HimarketAdminPassword string `mapstructure:"himarket-admin-password"`
 
-	// --- AgentRun Configuration ---
+	// Himarket Developer credentials
+	HimarketDeveloperURL      string `mapstructure:"himarket-developer-url"`
+	HimarketDeveloperUser     string `mapstructure:"himarket-developer-user"`
+	HimarketDeveloperPassword string `mapstructure:"himarket-developer-password"`
+
+	// AgentRun Configuration
 	AgentRunModelName           string `mapstructure:"agentrun-model-name"`
 	AgentRunSandboxName         string `mapstructure:"agentrun-sandbox-name"`
 	AlibabaCloudAccessKeyID     string `mapstructure:"alibaba-cloud-access-key-id"`

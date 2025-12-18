@@ -588,8 +588,32 @@ func queryAgentMCP(config *AgentConfig) error {
 	purple.Println("🔗 MCP Server Configuration")
 	cyan.Println("  Configure multiple MCP servers if you want to use external tools")
 	config.MCPServers = []MCPServerConfig{}
-	// Firstly Show Higress's existing mcp servers
-	existServers, names, err := getHigressMCPServers()
+
+	// Show Himarket's exising mcp servers
+	existServers, names, err := getHimarketMCPServer()
+	fmt.Println(err)
+	if err == nil && len(existServers) != 0 {
+		yellow.Println("🔗 Get existing MCP Servers from Himarket: ")
+		chosedNames := []string{}
+		hgServerPrompt := survey.MultiSelect{
+			Message: fmt.Sprintf("Choose MCP Server from Current Himarket(%s)", viper.GetString(HIMARKET_DEVELOPER_URL)),
+			Options: names,
+		}
+		if err := survey.AskOne(&hgServerPrompt, &chosedNames); err != nil {
+			return err
+		}
+
+		for _, name := range chosedNames {
+			config.MCPServers = append(config.MCPServers, MCPServerConfig{
+				Name:      name,
+				URL:       existServers[name],
+				Transport: "streamable_http",
+			})
+		}
+	}
+
+	// Show Higress's existing mcp servers
+	existServers, names, err = getHigressMCPServers()
 	if err == nil && len(existServers) != 0 {
 		yellow.Println("🔗 Get existing MCP Servers from Higress: ")
 		chosedNames := []string{}
@@ -880,6 +904,33 @@ func writeAgentPromptFile(dir, name, prompt string) error {
 		return fmt.Errorf("failed to write prompt file %s: %w", filePath, err)
 	}
 	return nil
+}
+
+func getHimarketMCPServer() (map[string]string, []string, error) {
+	conURL := viper.GetString(HIMARKET_DEVELOPER_URL)
+	conUser := viper.GetString(HIMARKET_ADMIN_USER)
+	conPwd := viper.GetString(HIMARKET_ADMIN_PASSWORD)
+
+	if conURL == "" || conUser == "" || conPwd == "" {
+		return nil, nil, fmt.Errorf("empty env, can not get Himarket's MCP Servers")
+	}
+
+	client := services.NewHimarketClient(
+		conURL,
+		conUser,
+		conPwd,
+	)
+	resultMap, err := client.GetDevMCPServerProduct()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	keys := make([]string, 0, len(resultMap))
+	for k := range resultMap {
+		keys = append(keys, k)
+	}
+
+	return resultMap, keys, nil
 }
 
 func getHigressMCPServers() (map[string]string, []string, error) {
