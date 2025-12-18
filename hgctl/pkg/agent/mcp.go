@@ -19,7 +19,6 @@ import (
 	"io"
 	"net/url"
 	"os"
-	"strings"
 
 	"github.com/alibaba/higress/hgctl/pkg/agent/services"
 	"github.com/alibaba/higress/hgctl/pkg/helm"
@@ -239,8 +238,8 @@ func publishMCPToHigress(arg MCPAddArg, transport string, config *models.MCPConf
 
 	srvName := fmt.Sprintf("hgctl-%s", arg.name)
 
-	// e.g. agent-jarvis.static.8090
-	body, targetSrvName, err := services.BuildServiceBodyAndSrvName(srvName, rawURL)
+	// e.g. hgctl-mcp-deepwiki.dns
+	body, targetSrvName, port, err := services.BuildServiceBodyAndSrv(srvName, rawURL)
 	if err != nil {
 		return fmt.Errorf("invalid url format: %s", err)
 	}
@@ -252,7 +251,7 @@ func publishMCPToHigress(arg MCPAddArg, transport string, config *models.MCPConf
 
 	srvField := []map[string]interface{}{{
 		"name":    targetSrvName,
-		"port":    strings.Split(targetSrvName, ":")[1],
+		"port":    port,
 		"version": "1.0",
 		"weight":  100,
 	}}
@@ -261,8 +260,12 @@ func publishMCPToHigress(arg MCPAddArg, transport string, config *models.MCPConf
 		"name":        arg.name,
 		"description": "A MCP Server added by hgctl",
 		"type":        mcpType,
-		"service":     targetSrvName,
 		"services":    srvField,
+		"domains":     []interface{}{},
+		"consumerAuthInfo": map[string]interface{}{
+			"type":             "key-auth",
+			"allowedConsumers": []string{},
+		},
 	}
 
 	// Only DIRECT_ROUTE Type get below extra params

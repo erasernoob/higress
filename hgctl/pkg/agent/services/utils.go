@@ -34,6 +34,7 @@ func BuildAIRouteServiceBody(name, _url string) map[string]interface{} {
 			"matchType":     "PRE",
 			"matchValue":    "/",
 			"caseSensitive": false,
+			"ignoreCase":    []string{}, // "ignoreCase": ["ignore"]
 		},
 		"headerPredicates":   []interface{}{},
 		"urlParamPredicates": []interface{}{},
@@ -47,7 +48,7 @@ func BuildAIRouteServiceBody(name, _url string) map[string]interface{} {
 		"modelPredicates": []interface{}{},
 		"authConfig": map[string]interface{}{
 			"enabled":                false,
-			"allowedCredentialTypes": nil,
+			"allowedCredentialTypes": "",
 			"allowedConsumers":       []interface{}{},
 		},
 		"fallbackConfig": map[string]interface{}{
@@ -59,10 +60,10 @@ func BuildAIRouteServiceBody(name, _url string) map[string]interface{} {
 	}
 }
 
-func BuildServiceBodyAndSrvName(name, urlStr string) (map[string]interface{}, string, error) {
+func BuildServiceBodyAndSrv(name, urlStr string) (map[string]interface{}, string, string, error) {
 	res, err := url.Parse(urlStr)
 	if err != nil {
-		return nil, "", err
+		return nil, "", "", err
 	}
 
 	// add service source
@@ -83,17 +84,18 @@ func BuildServiceBodyAndSrvName(name, urlStr string) (map[string]interface{}, st
 		srvPort = res.Port()
 	}
 
-	// e.g. agent-jarvis.static.8090
-	targetSrvName := fmt.Sprintf("%s.%s:%s", name, srvType, srvPort)
+	// e.g. hgctl-mcp-deepwiki.dns
+	targetSrvName := fmt.Sprintf("%s.%s", name, srvType)
 
 	return map[string]interface{}{
 		"domain":        res.Host,
 		"type":          srvType,
 		"port":          srvPort,
 		"name":          name,
+		"proxyName":     "",
 		"domainForEdit": res.Host,
 		"protocol":      res.Scheme,
-	}, targetSrvName, nil
+	}, targetSrvName, srvPort, nil
 }
 
 func BuildAPIRouteBody(name, srv string) map[string]interface{} {

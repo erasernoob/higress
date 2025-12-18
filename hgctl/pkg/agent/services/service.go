@@ -24,7 +24,7 @@ import (
 
 func HandleAddServiceSource(client *HigressClient, body interface{}) ([]byte, error) {
 	data, ok := body.(map[string]interface{})
-	// fmt.Printf("request body: %v\n", data)
+	fmt.Printf("request body: %v\n", data)
 	if !ok {
 		return nil, fmt.Errorf("failed to parse request body")
 	}
@@ -54,22 +54,30 @@ func HandleAddServiceSource(client *HigressClient, body interface{}) ([]byte, er
 // add MCP server to higress console, example request body as followed:
 //
 //	{
-//	  "name": "mcp-deepwiki",
-//	  "description": "",
-//	  "type": "DIRECT_ROUTE", // or OPEN_API
-//	  "service": "hgctl-deepwiki.dns:443",
-//	  "upstreamPathPrefix": "/mcp",
+//	  "name": "test",
+//	  "description": "123",
+//	  "type": "DIRECT_ROUTE",
 //	  "services": [
 //	    {
-//	      "name": "hgctl-deepwiki.dns",
+//	      "name": "hgctl-mcp-deepwiki.dns",
 //	      "port": 443,
 //	      "version": "1.0",
 //	      "weight": 100
 //	    }
-//	  ]
+//	  ],
+//	  "consumerAuthInfo": {
+//	    "type": "key-auth",
+//	    "allowedConsumers": []
+//	  },
+//	  "domains": [],
+//	  "directRouteConfig": {
+//	    "path": "/mcp",
+//	    "transportType": "streamable"
+//	  }
 //	}
 func HandleAddMCPServer(client *HigressClient, body interface{}) ([]byte, error) {
 	data, ok := body.(map[string]interface{})
+	fmt.Printf("mcpbody: %v\n", data)
 	if !ok {
 		return nil, fmt.Errorf("failed to parse request body")
 	}
@@ -80,10 +88,6 @@ func HandleAddMCPServer(client *HigressClient, body interface{}) ([]byte, error)
 	if _, ok := data["type"]; !ok {
 		return nil, fmt.Errorf("missing required field 'type' in body")
 	}
-	if _, ok := data["service"]; !ok {
-		return nil, fmt.Errorf("missing required field 'service' in body")
-	}
-
 	// if _, ok := data["upstreamPathPrefix"]; !ok {
 	// 	return nil, fmt.Errorf("missing required field 'upstreamPathPrefix' in body")
 	// }

@@ -67,7 +67,8 @@ const (
 var GlobalConfig HgctlAgentConfig
 
 type HgctlAgentConfig struct {
-	AGENT_CORE CoreType `mapstructure:"hgctl-agent-core"`
+	AgenticCore    CoreType `mapstructure:"hgctl-agent-core"`
+	AgentChatModel string   `mapstructure:"agent-chat-model"`
 
 	// Higress Console credentials
 	HigressConsoleURL      string `mapstructure:"higress-console-url"`
