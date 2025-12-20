@@ -136,7 +136,7 @@ func publishAgentAPIToHigress(arg AgentAddArg) error {
 		}
 
 		// add ai route
-		body = services.BuildAIRouteServiceBody(arg.name, arg.url)
+		body = services.BuildAddAIRouteBody(arg.name, arg.url)
 		fmt.Printf("Route body: %v\n", body)
 		if res, err := services.HandleAddAIRoute(client, body); err != nil {
 			fmt.Println(string(res))

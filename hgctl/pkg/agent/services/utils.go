@@ -25,14 +25,18 @@ func BuildAIProviderServiceBody(name, url string) map[string]interface{} {
 	}
 }
 
-func BuildAIRouteServiceBody(name, _url string) map[string]interface{} {
+func BuildAddAIRouteBody(name, _url string) map[string]interface{} {
 	return map[string]interface{}{
 		"name": fmt.Sprintf("%s-route", name),
 		// "version": "627198", // It's unecessary to provide when create a new one
 		"domains": []interface{}{},
 		"pathPredicate": map[string]interface{}{
-			"matchType":     "PRE",
-			"matchValue":    "/",
+			"matchType": "PRE",
+			// FIXME: Currently, to use model API in higress user hould follow this pattern:
+			// http://<higress-gateway-ip>/<PRE_MATCH_VALUE>/v1/chat/completions or /v1/embedding
+			// However in Himarket, when connecting the higress ai route as model API, himarket will directly use http://<higress-gateway-ip>/<PRE_MATCH_VALUE>
+			// as the final request url, which will not get to right path. So here we make the matchValue hard-coded as `/v1/chat/completions`
+			"matchValue":    "/v1/chat/completions",
 			"caseSensitive": false,
 			"ignoreCase":    []string{}, // "ignoreCase": ["ignore"]
 		},
@@ -48,7 +52,7 @@ func BuildAIRouteServiceBody(name, _url string) map[string]interface{} {
 		"modelPredicates": []interface{}{},
 		"authConfig": map[string]interface{}{
 			"enabled":                false,
-			"allowedCredentialTypes": "",
+			"allowedCredentialTypes": []interface{}{},
 			"allowedConsumers":       []interface{}{},
 		},
 		"fallbackConfig": map[string]interface{}{
