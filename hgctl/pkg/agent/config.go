@@ -39,6 +39,7 @@ const (
 	// AgentReleasePage = "https://docs.claude.com/en/docs/claude-code/setup"
 
 	HGCTL_AGENT_CORE         = "hgctl-agent-core"
+	AGENT_MODEL_PROVIDER     = "agent-model-provider"
 	AGENT_CHAT_MODEL         = "agent-chat-model"
 	HIGRESS_CONSOLE_URL      = "higress-console-url"
 	HIGRESS_CONSOLE_USER     = "higress-console-user"
@@ -67,8 +68,9 @@ const (
 var GlobalConfig HgctlAgentConfig
 
 type HgctlAgentConfig struct {
-	AgenticCore    CoreType `mapstructure:"hgctl-agent-core"`
-	AgentChatModel string   `mapstructure:"agent-chat-model"`
+	AgenticCore        CoreType `mapstructure:"hgctl-agent-core"`
+	AgentChatModel     string   `mapstructure:"agent-chat-model"`
+	AgentModelProvider string   `mapstructure:"agent-model-provider"`
 
 	// Higress Console credentials
 	HigressConsoleURL      string `mapstructure:"higress-console-url"`

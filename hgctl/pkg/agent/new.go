@@ -84,6 +84,7 @@ type AgentConfig struct {
 	AvailableTools  []string //   availiable tools (built-in agentscope)
 	SysPromptPath   string   //  "You are a helpful assistant"
 	ChatModel       string   //  "qwen-max"
+	Provider        string   //  "Aliyun"
 	APIKeyEnvVar    string   //  DASHCOPE_API_KEY
 	DeploymentPort  int      //  8090
 	HostBinding     string   //  0.0.0.0

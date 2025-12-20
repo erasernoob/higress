@@ -409,13 +409,6 @@ func importAgentFromCore(config *AgentConfig) error {
 		return err
 	}
 
-	promptThinking := &survey.Confirm{
-		Message: "Enable thinking mode?",
-		Default: true,
-	}
-	if err := survey.AskOne(promptThinking, &config.EnableThinking); err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -553,16 +546,55 @@ func queryAgentRunModel(config *AgentConfig) error {
 }
 
 func queryLocalModel(config *AgentConfig) error {
-	defaultModel := "qwen-plus"
-	if env_model := viper.GetString(AGENT_CHAT_MODEL); env_model != "" {
-		defaultModel = env_model
+	type providerSpec struct {
+		InternalName string
+		DefaultModel string
+		DefaultKey   string
+	}
+
+	providerMap := map[string]providerSpec{
+		"DashScope": {InternalName: "DashScopeChat", DefaultModel: "qwen-plus", DefaultKey: "DASHSCOPE_API_KEY"},
+		"OpenAI":    {InternalName: "OpenAIChat", DefaultModel: "gpt-4o", DefaultKey: "OPENAI_API_KEY"},
+		"Anthropic": {InternalName: "AnthropicChat", DefaultModel: "claude-3-5-sonnet-latest", DefaultKey: "ANTHROPIC_API_KEY"},
+		"Ollama":    {InternalName: "OllamaChat", DefaultModel: "llama3", DefaultKey: "OLLAMA_API_KEY"},
+		"Gemini":    {InternalName: "GeminiChat", DefaultModel: "gemini-1.5-pro", DefaultKey: "GEMINI_API_KEY"},
+		"Trinity":   {InternalName: "TrinityChat", DefaultModel: "trinity-model", DefaultKey: "TRINITY_API_KEY"},
+	}
+
+	options := []string{"Aliyun DashScope", "OpenAI", "Anthropic", "Ollama (Local)", "Google Gemini", "Trinity"}
+
+	defaultProvider := ""
+
+	if envProvider := viper.GetString(AGENT_MODEL_PROVIDER); envProvider != "" {
+		defaultProvider = envProvider
 	}
 
 	fmt.Println()
+	purple.Println("🏢 AI Provider")
+	var selectedDisplayName string
+	promptProvider := &survey.Select{
+		Message: "Choose the AI provider:",
+		Options: options,
+		Default: defaultProvider,
+	}
+	if err := survey.AskOne(promptProvider, &selectedDisplayName); err != nil {
+		return err
+	}
+
+	spec := providerMap[selectedDisplayName]
+	config.Provider = spec.InternalName
+
+	fmt.Println()
 	purple.Println("🤖 AI Model")
-	fmt.Println("  Choose the AI model that powers this agent")
+	fmt.Println("  Current Provider: " + spec.InternalName)
+
+	defaultModel := spec.DefaultModel
+	if envModel := viper.GetString(AGENT_CHAT_MODEL); envModel != "" {
+		defaultModel = envModel
+	}
+
 	promptModelName := &survey.Input{
-		Message: "Which AI model to use?",
+		Message: "Which model ID to use?",
 		Default: defaultModel,
 	}
 	if err := survey.AskOne(promptModelName, &config.ChatModel); err != nil {
@@ -571,10 +603,9 @@ func queryLocalModel(config *AgentConfig) error {
 
 	fmt.Println()
 	purple.Println("🔑 API Key Configuration")
-	fmt.Println("  Environment variable name for models API key")
 	promptAPIKey := &survey.Input{
 		Message: "Environment variable name for API key:",
-		Default: "DASHSCOPE_API_KEY",
+		Default: spec.DefaultKey,
 	}
 	if err := survey.AskOne(promptAPIKey, &config.APIKeyEnvVar); err != nil {
 		return err
@@ -880,14 +911,6 @@ func createAgentStepByStep(config *AgentConfig) error {
 		return err
 	}
 
-	promptThinking := &survey.Confirm{
-		Message: "Enable thinking mode?",
-		Default: true,
-	}
-	if err := survey.AskOne(promptThinking, &config.EnableThinking); err != nil {
-		return err
-	}
-
 	showConfigSummary(config)
 
 	return nil
@@ -969,12 +992,12 @@ func showConfigSummary(config *AgentConfig) {
 	summaryColor := color.New(color.FgBlue, color.Bold)
 	summaryColor.Println("📊 Agent Configuration Summary:")
 	fmt.Printf("  📝 Name: %s\n", config.AgentName)
+	fmt.Printf("  🏢 Provider: %s\n", config.Provider)
 	fmt.Printf("  🤖 Model: %s\n", config.ChatModel)
 	fmt.Printf("  🔧 Tools: %d selected\n", len(config.AvailableTools))
 	fmt.Printf("  🌐 Port: %d\n", config.DeploymentPort)
 	fmt.Printf("  📍 Host: %s\n", config.HostBinding)
 	fmt.Printf("  ✨ Streaming: %t\n", config.EnableStreaming)
-	fmt.Printf("  🧠 Thinking: %t\n", config.EnableThinking)
 
 	if len(config.MCPServers) > 0 {
 		fmt.Printf("  🔗 MCP Servers: %d\n", len(config.MCPServers))

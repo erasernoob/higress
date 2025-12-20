@@ -4,8 +4,8 @@ import asyncio
 from agentscope_runtime.engine import AgentApp
 from agentscope_runtime.engine.schemas.agent_schemas import AgentRequest
 
-from agentscope.model import DashScopeChatModel
-from agentscope.formatter import DashScopeChatFormatter
+from agentscope.model import {{ .Provider }}Model
+from agentscope.formatter import {{ .Provider }}Formatter
 
 from agentscope_runtime.adapters.agentscope.memory import AgentScopeSessionHistoryMemory
 from agentscope_runtime.engine.services.agent_state import InMemoryStateService
@@ -61,10 +61,9 @@ async def query_func(self, msgs, request: AgentRequest, **kwargs):
     # ---- 创建 Agent ----
     agent = Agent(
         name="{{.AgentName}}",
-        model=DashScopeChatModel(
+        model={{ .Provider }}Model(
             "{{.ChatModel}}",
             api_key=os.getenv("{{.APIKeyEnvVar}}"),
-            enable_thinking={{.EnableThinking | boolToPython}},
             stream={{.EnableStreaming | boolToPython}},
         ),
         sys_prompt=load_sys_prompt(),
@@ -74,7 +73,7 @@ async def query_func(self, msgs, request: AgentRequest, **kwargs):
             session_id=session_id,
             user_id=user_id,
         ),
-        formatter=DashScopeChatFormatter(),
+        formatter={{ .Provider }}Formatter(),
     )
     agent.set_console_output_enabled(enabled=False)
 
