@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/alibaba/higress/hgctl/pkg/manifests"
+	"github.com/alibaba/higress/hgctl/pkg/util"
 	"github.com/fatih/color"
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/viper"
@@ -38,6 +39,45 @@ func NewAgenticCore() *AgenticCore {
 	}
 	core.Setup()
 	return core
+}
+
+func (c *AgenticCore) GetPromptFileName() string {
+	switch c.binaryName {
+	case string(CORE_CLAUDE):
+		return "CLAUDE.md"
+	case string(CORE_QODERCLI):
+		return "AGENTS.md"
+	}
+	return ""
+}
+
+func (c *AgenticCore) GetCoreDirName() string {
+	switch c.binaryName {
+	case string(CORE_CLAUDE):
+		return ".claude"
+	case string(CORE_QODERCLI):
+		return ".qoder"
+	}
+	return ""
+}
+
+// This will use core to test and improve created agent
+func (c *AgenticCore) ImproveNewAgent(config *AgentConfig) error {
+	agentDir, err := util.GetSpecificAgentDir(config.AgentName)
+	if err != nil {
+		return fmt.Errorf("failed to get agent directory: %s", agentDir)
+	}
+	return c.runInTargetDir(agentDir)
+}
+
+func (c *AgenticCore) runInTargetDir(dir string, args ...string) error {
+	cmd := exec.Command(c.binaryName, args...)
+	cmd.Dir = dir
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+
 }
 
 func (c *AgenticCore) runWithResult(args ...string) (string, error) {
@@ -73,7 +113,7 @@ func (c *AgenticCore) Setup() {
 		return
 	}
 
-	targetCoreDir := filepath.Join(homeDir, fmt.Sprintf(".%s", viper.GetString(HGCTL_AGENT_CORE)))
+	targetCoreDir := filepath.Join(homeDir, c.GetCoreDirName())
 
 	// setup subagent plugins file
 	embedFS := manifests.BuiltinOrDir("")
@@ -90,12 +130,32 @@ func (c *AgenticCore) Setup() {
 		os.Exit(1)
 	}
 
+	// Add Predefined MCP Server
+	if err := c.addPredefinedMCP(); err != nil {
+		fmt.Printf("Warning: failed to add needed mcp server: %s\n", err)
+	}
+
 	if err := c.addHigressAPIMCP(); err != nil {
 		fmt.Println("failed to init higress-api mcp server (you may need to add it manually):", err)
 		fmt.Println("Details information on Higress-api MCP server refers to https://github.com/alibaba/higress/blob/main/plugins/golang-filter/mcp-server/servers/higress/higress-api/README_en.md")
 		return
 	}
-	fmt.Println("Higress-api MCP server added successfully")
+	// fmt.Println("Higress-api MCP server added successfully")
+}
+
+func (c *AgenticCore) addPredefinedMCP() error {
+	deepwikiArg := MCPAddArg{
+		name:      "deepwiki",
+		url:       "https://mcp.deepwiki.com/mcp",
+		typ:       "",
+		transport: STREAMABLE,
+		scope:     "user",
+	}
+	if err := c.AddMCPServer(deepwikiArg); err != nil {
+		return fmt.Errorf("deepwiki")
+	}
+
+	return nil
 }
 
 func (c *AgenticCore) addHigressAPIMCP() error {

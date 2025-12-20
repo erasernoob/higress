@@ -16,6 +16,7 @@ from agentrun.sandbox import TemplateType
 from agentrun.server import AgentRequest, AgentRunServer
 from agentrun.utils.log import logger
 
+from agent import Agent
 from toolkit import toolkit, init_toolkit_sync
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "python"))
@@ -43,7 +44,7 @@ def load_sys_prompt(prompt_file_name="prompt.md"):
     with open(prompt_path, 'r', encoding='utf-8') as f:
         return f.read()
 
-agent = ReActAgent(
+agent = Agent(
     name="{{ .AgentName }}",
     model=model(MODEL_NAME),  # type: ignore
     sys_prompt=load_sys_prompt(),

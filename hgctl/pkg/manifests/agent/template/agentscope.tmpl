@@ -4,7 +4,6 @@ import asyncio
 from agentscope_runtime.engine import AgentApp
 from agentscope_runtime.engine.schemas.agent_schemas import AgentRequest
 
-from agentscope.agent import ReActAgent
 from agentscope.model import DashScopeChatModel
 from agentscope.formatter import DashScopeChatFormatter
 
@@ -17,6 +16,7 @@ from agentscope.pipeline import stream_printing_messages
 from agentscope_runtime.engine.deployers.local_deployer import LocalDeployManager
 from agentscope_runtime.engine.deployers.utils.deployment_modes import DeploymentMode
 
+from agent import Agent
 from toolkit import toolkit, init_toolkit_sync
 
 app = AgentApp(
@@ -59,7 +59,7 @@ async def query_func(self, msgs, request: AgentRequest, **kwargs):
     )
 
     # ---- 创建 Agent ----
-    agent = ReActAgent(
+    agent = Agent(
         name="{{.AgentName}}",
         model=DashScopeChatModel(
             "{{.ChatModel}}",

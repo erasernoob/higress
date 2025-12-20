@@ -7,22 +7,27 @@ import (
 	"path/filepath"
 	"text/template"
 
+	"github.com/AlecAivazis/survey/v2"
+	"github.com/alibaba/higress/hgctl/pkg/agent/prompt"
 	"github.com/alibaba/higress/hgctl/pkg/manifests"
 	"github.com/alibaba/higress/hgctl/pkg/util"
 	"github.com/spf13/cobra"
-	cmdutil "k8s.io/kubectl/pkg/cmd/util"
+	"github.com/spf13/viper"
 )
 
 const (
 	ASRuntimeMainPyFile = "as_runtime_main.py"
 	AgentRunMainPyFile  = "agentrun_main.py"
 	ToolKitPyFile       = "toolkit.py"
+	AgentClassFile      = "agent.py"
+	CorePromptFile      = "claude.md" // TODO: support qoder AGENTS.md
 	SConfigYAML         = "s.yaml"
 
-	ARTemplate      = "agentrun.tmpl"
-	ASTemplate      = "agentscope.tmpl"
-	ToolKitTemplate = "toolkit.tmpl"
-	SConfigTemplate = "agentrun_s.tmpl"
+	ARTemplate         = "agentrun.tmpl"
+	ASTemplate         = "agentscope.tmpl"
+	AgentClassTemplate = "agent.tmpl"
+	ToolKitTemplate    = "toolkit.tmpl"
+	SConfigTemplate    = "agentrun_s.tmpl"
 )
 
 var ASAvailiableTools = []string{
@@ -47,6 +52,9 @@ const (
 
 	DefaultServerLessAccessKey = "hgctl-credential"
 )
+
+// Callback type for post-agent-creation actions
+type PostAgentAction func(config *AgentConfig) error
 
 type MCPServerConfig struct {
 	Name      string            // MCP Client Name
@@ -121,13 +129,10 @@ func createAgentCmd() *cobra.Command {
 				os.Exit(1)
 			}
 
-			if deployDirect {
-				handler := &DeployHandler{Name: config.AgentName}
-				cmdutil.CheckErr(handler.Deploy())
-			} else {
-				fmt.Printf("🌟 agent %s created successfully, you can deploy it by using `hgctl agent deploy %s`\n", config.AgentName, config.AgentName)
+			if err := afterCreatedAgent(config); err != nil {
+				fmt.Println(err)
+				os.Exit(1)
 			}
-
 		},
 	}
 
@@ -135,6 +140,65 @@ func createAgentCmd() *cobra.Command {
 	createAgentCmd.PersistentFlags().BoolVar(&deployDirect, "deploy", false, "After agent creation, deploy it directly")
 	return createAgentCmd
 
+}
+
+func afterCreatedAgent(config *AgentConfig) error {
+	options := []string{
+		"Deploy it directly",
+		fmt.Sprintf("Improve and test it using agentic core (%s)", viper.GetString(HGCTL_AGENT_CORE)),
+		"Do nothing and quit",
+	}
+	callbacks := map[string]PostAgentAction{
+		options[0]: func(cfg *AgentConfig) error {
+			handler := &DeployHandler{Name: cfg.AgentName}
+			return handler.Deploy()
+		},
+		options[1]: func(cfg *AgentConfig) error {
+			return runAgenticCoreImprovement(cfg)
+		},
+	}
+
+	if err := promptAfterCreatedAgent(options, config, callbacks); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to handle post-creation action: %v\n", err)
+		return nil
+	}
+	return nil
+}
+
+func runAgenticCoreImprovement(cfg *AgentConfig) error {
+	core, err := getCore()
+	if err != nil {
+		return fmt.Errorf("failed to invoke agent core: %s", err)
+	}
+
+	if err := core.ImproveNewAgent(cfg); err != nil {
+		return fmt.Errorf("failed to use core to improve new agent: %s", err)
+	}
+	return nil
+}
+
+func promptAfterCreatedAgent(options []string, config *AgentConfig, callbacks map[string]PostAgentAction) error {
+
+	promptChoice := &survey.Select{
+		Message: "What's next?:",
+		Options: options,
+		Help:    "Choose an action to perform after agent creation.",
+	}
+
+	var response string
+	if err := survey.AskOne(promptChoice, &response); err != nil {
+		return fmt.Errorf("failed to read user choice: %w", err)
+	}
+
+	if callback, ok := callbacks[response]; ok {
+		return callback(config)
+	}
+
+	if response == options[2] {
+		os.Exit(1)
+	}
+
+	return fmt.Errorf("unknown action selected: %q", response)
 }
 
 func createAgentTemplate(config *AgentConfig) error {
@@ -200,7 +264,26 @@ func createAgentTemplate(config *AgentConfig) error {
 		return fmt.Errorf("failed to render toolkit file: %s", err)
 	}
 
-	return nil
+	// write agent.py
+	agentPath := filepath.Join(agentDir, AgentClassFile)
+	agentTmpl, err := get_template(AgentClassTemplate)
+	if err != nil {
+		return fmt.Errorf("failed to read agent class template: %v", err)
+	}
+	if err := renderTemplateFile(agentTmpl, agentPath, config); err != nil {
+		return fmt.Errorf("failed to render agent class file: %s", err)
+	}
+
+	// write core_prompt.md
+	if core, err := getCore(); err == nil {
+		corePromptPath := filepath.Join(agentDir, core.GetPromptFileName())
+		if err := util.WriteFileString(corePromptPath, prompt.AgentDevelopmentGuide, os.ModePerm); err != nil {
+			return fmt.Errorf("failed to write %s file to target agent directory: %s", core.GetPromptFileName(), err)
+		}
+		return nil
+	} else {
+		return fmt.Errorf("failed to add instruction file in agent dir: %s", err)
+	}
 }
 
 func renderTemplateFile(templateStr string, targetPath string, data interface{}) error {
