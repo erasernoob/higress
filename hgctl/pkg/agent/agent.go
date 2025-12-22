@@ -129,7 +129,7 @@ func publishAgentAPIToHigress(arg AgentAddArg) error {
 		// add ai service
 		body := services.BuildAIProviderServiceBody(arg.name, arg.url)
 		// Debug
-		fmt.Printf("services: body: %v\n", body)
+		// fmt.Printf("services: body: %v\n", body)
 		if resp, err := services.HandleAddAIProviderService(client, body); err != nil {
 			fmt.Println(string(resp))
 			return err
@@ -137,7 +137,7 @@ func publishAgentAPIToHigress(arg AgentAddArg) error {
 
 		// add ai route
 		body = services.BuildAddAIRouteBody(arg.name, arg.url)
-		fmt.Printf("Route body: %v\n", body)
+		// fmt.Printf("Route body: %v\n", body)
 		if res, err := services.HandleAddAIRoute(client, body); err != nil {
 			fmt.Println(string(res))
 			return err

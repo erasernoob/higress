@@ -289,7 +289,7 @@ func getAllProfiles() ([]*installer.ProfileContext, error) {
 func getAgentConfig(config *AgentConfig) error {
 	options := []string{
 		"create step by step",
-		"import existing one from current agentcore",
+		fmt.Sprintf("import existing one from current agentcore (%s)", viper.GetString(HGCTL_AGENT_CORE)),
 	}
 
 	var response string
@@ -314,8 +314,11 @@ func getAgentConfig(config *AgentConfig) error {
 
 func getAgentCoreSubAgents() (map[string]string, []string, error) {
 	home, _ := os.UserHomeDir()
-	core := viper.GetString(HGCTL_AGENT_CORE)
-	coreAgentsDir := filepath.Join(home, fmt.Sprintf(".%s", core), "agents")
+	core, err := getCore()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get core: %s", err)
+	}
+	coreAgentsDir := filepath.Join(home, core.GetCoreDirName(), "agents")
 
 	files, err := os.ReadDir(coreAgentsDir)
 	if err != nil {
@@ -561,19 +564,18 @@ func queryLocalModel(config *AgentConfig) error {
 		"Trinity":   {InternalName: "TrinityChat", DefaultModel: "trinity-model", DefaultKey: "TRINITY_API_KEY"},
 	}
 
-	options := []string{"Aliyun DashScope", "OpenAI", "Anthropic", "Ollama (Local)", "Google Gemini", "Trinity"}
+	options := []string{"DashScope", "OpenAI", "Anthropic", "Ollama", "Gemini", "Trinity"}
 
-	defaultProvider := ""
+	defaultProvider := options[0]
 
 	if envProvider := viper.GetString(AGENT_MODEL_PROVIDER); envProvider != "" {
 		defaultProvider = envProvider
 	}
 
-	fmt.Println()
 	purple.Println("🏢 AI Provider")
 	var selectedDisplayName string
 	promptProvider := &survey.Select{
-		Message: "Choose the AI provider:",
+		Message: fmt.Sprintf("Choose the AI provider (%s):", defaultProvider),
 		Options: options,
 		Default: defaultProvider,
 	}
@@ -584,24 +586,20 @@ func queryLocalModel(config *AgentConfig) error {
 	spec := providerMap[selectedDisplayName]
 	config.Provider = spec.InternalName
 
-	fmt.Println()
 	purple.Println("🤖 AI Model")
-	fmt.Println("  Current Provider: " + spec.InternalName)
-
 	defaultModel := spec.DefaultModel
 	if envModel := viper.GetString(AGENT_CHAT_MODEL); envModel != "" {
 		defaultModel = envModel
 	}
 
 	promptModelName := &survey.Input{
-		Message: "Which model ID to use?",
+		Message: fmt.Sprintf("Which model to use? (%s)", defaultModel),
 		Default: defaultModel,
 	}
 	if err := survey.AskOne(promptModelName, &config.ChatModel); err != nil {
 		return err
 	}
 
-	fmt.Println()
 	purple.Println("🔑 API Key Configuration")
 	promptAPIKey := &survey.Input{
 		Message: "Environment variable name for API key:",
@@ -615,14 +613,12 @@ func queryLocalModel(config *AgentConfig) error {
 }
 
 func queryAgentMCP(config *AgentConfig) error {
-	fmt.Println()
 	purple.Println("🔗 MCP Server Configuration")
 	cyan.Println("  Configure multiple MCP servers if you want to use external tools")
 	config.MCPServers = []MCPServerConfig{}
 
 	// Show Himarket's exising mcp servers
 	existServers, names, err := getHimarketMCPServer()
-	fmt.Println(err)
 	if err == nil && len(existServers) != 0 {
 		yellow.Println("🔗 Get existing MCP Servers from Himarket: ")
 		chosedNames := []string{}
@@ -749,7 +745,6 @@ func queryDeploySettings(config *AgentConfig) error {
 }
 
 func queryAgentRunDeploySettings(config *AgentConfig) error {
-	fmt.Println()
 	purple.Println("☁️  AgentRun Deployment Settings")
 	fmt.Println("   Configure the settings for deploying to AgentRun/FC")
 
@@ -827,7 +822,6 @@ func queryAgentRunDeploySettings(config *AgentConfig) error {
 }
 
 func queryLocalDeploySettings(config *AgentConfig) error {
-	fmt.Println()
 	purple.Println("🌐 Deployment Settings")
 	fmt.Println("  Network configuration for the agent")
 	promptPort := &survey.Input{
@@ -931,8 +925,8 @@ func writeAgentPromptFile(dir, name, prompt string) error {
 
 func getHimarketMCPServer() (map[string]string, []string, error) {
 	conURL := viper.GetString(HIMARKET_DEVELOPER_URL)
-	conUser := viper.GetString(HIMARKET_ADMIN_USER)
-	conPwd := viper.GetString(HIMARKET_ADMIN_PASSWORD)
+	conUser := viper.GetString(HIMARKET_DEVELOPER_USER)
+	conPwd := viper.GetString(HIMARKET_DEVELOPER_PASSWORD)
 
 	if conURL == "" || conUser == "" || conPwd == "" {
 		return nil, nil, fmt.Errorf("empty env, can not get Himarket's MCP Servers")

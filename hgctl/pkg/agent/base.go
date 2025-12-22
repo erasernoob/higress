@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -310,28 +311,51 @@ func (p *EnvProvisioner) promptNodeInstall() error {
 }
 
 func (p *EnvProvisioner) installNodeAutomatically() error {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("could not get home directory: %w", err)
+	}
+
+	fnmBinPath := filepath.Join(homeDir, ".local/share/fnm/fnm")
+	if runtime.GOOS == "windows" {
+		fnmBinPath = filepath.Join(homeDir, "AppData/Roaming/fnm/fnm.exe")
+	}
+
 	switch runtime.GOOS {
 	case "windows":
-		color.Cyan("📦 Please download Node.js installer from https://nodejs.org and run it manually on Windows")
-		return errors.New("automatic installation not supported on Windows yet")
-	case "darwin":
-		// macOS: use brew
-		cmd := exec.Command("brew", "install", "node")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		return cmd.Run()
-	case "linux":
-		// Linux (Debian/Ubuntu example)
-		cmd := exec.Command("sudo", "apt", "update")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			return err
+		color.Cyan("📦 For Windows, we recommend installing fnm via: 'winget install Schniz.fnm'")
+		return errors.New("automatic fnm installation on Windows is not implemented in this script")
+
+	case "darwin", "linux":
+		color.Cyan("🚀 Installing fnm (Fast Node Manager)...")
+		installFnmCmd := exec.Command("bash", "-c", "curl -fsSL https://fnm.vercel.app/install | bash -s -- --skip-shell")
+		installFnmCmd.Stdout = os.Stdout
+		installFnmCmd.Stderr = os.Stderr
+		if err := installFnmCmd.Run(); err != nil {
+			return fmt.Errorf("failed to install fnm: %w", err)
 		}
-		cmd = exec.Command("sudo", "apt", "install", "-y", "nodejs", "npm")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		return cmd.Run()
+
+		if _, err := os.Stat(fnmBinPath); os.IsNotExist(err) {
+			path, err := exec.LookPath("fnm")
+			if err == nil {
+				fnmBinPath = path
+			} else {
+				return errors.New("fnm was installed but binary not found at " + fnmBinPath)
+			}
+		}
+
+		color.Cyan("📦 Installing Node.js via fnm...")
+		installNodeCmd := exec.Command(fnmBinPath, "install", "--lts")
+		installNodeCmd.Stdout = os.Stdout
+		installNodeCmd.Stderr = os.Stderr
+		if err := installNodeCmd.Run(); err != nil {
+			return fmt.Errorf("failed to install node via fnm: %w", err)
+		}
+
+		color.Cyan("✅ Setting LTS as default Node.js version...")
+		useNodeCmd := exec.Command(fnmBinPath, "default", "lts-latest")
+		return useNodeCmd.Run()
+
 	default:
 		return errors.New("unsupported OS for automatic installation")
 	}
