@@ -51,6 +51,9 @@ func deployAgentCmd() *cobra.Command {
 		},
 	}
 
+	var cloud = false
+	cmd.PersistentFlags().BoolVar(&cloud, "agentrun", false, "deploy agent using agentrun")
+
 	return cmd
 }
 

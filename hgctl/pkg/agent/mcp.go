@@ -82,10 +82,13 @@ func newMCPAddCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add [name] [url]",
 		Short: "add mcp server including http and openapi",
-		Example: `  # Add HTTP type MCP Server 
+		Example: `  # Add HTTP type MCP Server
   hgctl mcp add http-mcp http://localhost:8080/mcp
 
-  # Add MCP Server use Openapi file  
+  # Add MCP Server with environment variables and headers
+  hgctl mcp add http-mcp http://localhost:8080/mcp -e API_KEY=secret -H "Authorization: Bearer token"
+
+  # Add MCP Server use Openapi file
   hgctl mcp add swagger-mcp ./path/to/openapi.yaml --type openapi`,
 		Run: func(cmd *cobra.Command, args []string) {
 
@@ -107,6 +110,8 @@ func newMCPAddCmd() *cobra.Command {
 	cmd.PersistentFlags().StringVar(&arg.typ, "type", HTTP, "Determine the MCP Server's Type")
 	cmd.PersistentFlags().StringVarP(&arg.transport, "transport", "t", STREAMABLE, `The MCP Server's transport`)
 	cmd.PersistentFlags().StringVarP(&arg.scope, "scope", "s", "project", `Configuration scope (project or global)`)
+	cmd.PersistentFlags().StringSliceVarP(&arg.env, "env", "e", nil, "Environment variables to pass to the MCP server (can be specified multiple times)")
+	cmd.PersistentFlags().StringSliceVarP(&arg.header, "header", "H", nil, "HTTP headers to pass to the MCP server (can be specified multiple times)")
 	cmd.PersistentFlags().BoolVar(&arg.noPublish, "no-publish", false, "If set then the mcp server will not be plubished to higress")
 	cmd.PersistentFlags().BoolVar(&arg.asProduct, "as-product", false, "If it's set then the agent API will be published to Himarket (no-publish must be false)")
 
@@ -146,7 +151,7 @@ func (h *MCPAddHandler) addHTTPMCP() error {
 func (h *MCPAddHandler) addOpenAPIMCP() error {
 	// fmt.Printf("get mcp server: %s openapi-spec-file: %s\n", h.arg.name, h.arg.spec)
 	config := h.parseOpenapiSpec()
-
+	config.Server.SecuritySchemes[0].DefaultCredential = "b5b9752c7ad2cb9c6b19fb5fd6a23be8852eca9c"
 	// fmt.Printf("get config struct: %v", config)
 
 	// publish to higress
@@ -291,12 +296,17 @@ func publishMCPToHigress(arg MCPAddArg, transport string, config *models.MCPConf
 
 func addMCPToolConfig(client *services.HigressClient, config *models.MCPConfig, srvField []map[string]interface{}) {
 	body := map[string]interface{}{
-		"name": config.Server.Name,
-		//	  "description": "",
+		"name":              config.Server.Name,
+		"description":       "A MCP Server added by hgctl",
 		"services":          srvField,
 		"type":              OPEN_API,
 		"rawConfigurations": convertMCPConfigToStr(config),
 		"mcpServerName":     config.Server.Name,
+		"domains":           []interface{}{},
+		"consumerAuthInfo": map[string]interface{}{
+			"type":             "key-auth",
+			"allowedConsumers": []string{},
+		},
 	}
 
 	_, err := services.HandleAddOpenAPITool(client, body)

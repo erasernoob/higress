@@ -46,9 +46,10 @@ const (
 	HIGRESS_CONSOLE_PASSWORD = "higress-console-password"
 	HIGRESS_GATEWAY_URL      = "higress-gateway-url"
 
-	HIMARKET_ADMIN_URL      = "himarket-admin-url"
-	HIMARKET_ADMIN_USER     = "himarket-admin-user"
-	HIMARKET_ADMIN_PASSWORD = "himarket-admin-password"
+	HIMARKET_ADMIN_URL         = "himarket-admin-url"
+	HIMARKET_ADMIN_USER        = "himarket-admin-user"
+	HIMARKET_ADMIN_PASSWORD    = "himarket-admin-password"
+	HIMARKET_TARGET_HIGRESS_ID = "himarket-target-higress-id"
 
 	HIMARKET_DEVELOPER_URL      = "himarket-developer-url"
 	HIMARKET_DEVELOPER_USER     = "himarket-developer-user"
@@ -78,9 +79,10 @@ type HgctlAgentConfig struct {
 	HigressConsolePassword string `mapstructure:"higress-console-password"`
 	HigressGatewayURL      string `mapstructure:"higress-gateway-url"`
 	// Himarket Admin credentials
-	HimarketAdminURL      string `mapstructure:"himarket-admin-url"`
-	HimarketAdminUser     string `mapstructure:"himarket-admin-user"`
-	HimarketAdminPassword string `mapstructure:"himarket-admin-password"`
+	HimarketAdminURL        string `mapstructure:"himarket-admin-url"`
+	HimarketAdminUser       string `mapstructure:"himarket-admin-user"`
+	HimarketAdminPassword   string `mapstructure:"himarket-admin-password"`
+	HimarketTargetHigressID string `mapstructure:"himarket-target-higress-id"`
 
 	// Himarket Developer credentials
 	HimarketDeveloperURL      string `mapstructure:"himarket-developer-url"`

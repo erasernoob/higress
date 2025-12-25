@@ -135,10 +135,10 @@ func publishAPIToHimarket(typ, name string, arg HimarketAdminAuthArg) error {
 
 	productName := fmt.Sprintf("%s-%s", typ, name)
 
-	var gatewayId string
+	var gatewayId = viper.GetString(HIMARKET_TARGET_HIGRESS_ID)
 	prompt := survey.Input{
-		Message: "Enter the target Higress instance id on Himarket:",
-		Default: "",
+		Message: fmt.Sprintf("Enter the target Higress instance id on Himarket(%s):", gatewayId),
+		Default: gatewayId,
 		Help:    fmt.Sprintf("refers to %s/consoles/gateway to get your target Higress instance's id", arg.hmURL),
 	}
 

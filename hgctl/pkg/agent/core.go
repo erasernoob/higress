@@ -144,16 +144,16 @@ func (c *AgenticCore) Setup() {
 }
 
 func (c *AgenticCore) addPredefinedMCP() error {
-	deepwikiArg := MCPAddArg{
-		name:      "deepwiki",
-		url:       "https://mcp.deepwiki.com/mcp",
-		typ:       "",
-		transport: STREAMABLE,
-		scope:     "user",
-	}
-	if err := c.AddMCPServer(deepwikiArg); err != nil {
-		return fmt.Errorf("deepwiki")
-	}
+	// deepwikiArg := MCPAddArg{
+	// 	name:      "deepwiki",
+	// 	url:       "https://mcp.deepwiki.com/mcp",
+	// 	typ:       "",
+	// 	transport: STREAMABLE,
+	// 	scope:     "user",
+	// }
+	// if err := c.AddMCPServer(deepwikiArg); err != nil {
+	// 	return fmt.Errorf("deepwiki")
+	// }
 
 	return nil
 }
